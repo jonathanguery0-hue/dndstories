@@ -1,0 +1,123 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>⚔️</text></svg>">
+<title>Contes &amp; Dragons</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@600;700&family=Crimson+Pro:ital,wght@0,400;0,600;1,400&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+
+<header class="barre">
+  <a href="#" class="logo" id="lien-accueil">⚔️ Contes &amp; Dragons</a>
+  <button class="bouton-icone" id="ouvrir-reglages" title="Réglages">⚙️</button>
+</header>
+
+<!-- ============ ACCUEIL ============ -->
+<main id="ecran-accueil" class="ecran">
+  <section class="carte intro">
+    <h1>Contes &amp; Dragons</h1>
+    <p>Un jeu de rôle textuel où une IA est ton maître du jeu. Crée ton héros, et vis une aventure
+      où chaque choix compte. Les dés, eux, ne mentent jamais.</p>
+    <div id="alerte-config" class="alerte cachee">
+      Avant de jouer, ajoute ta clé API OpenAI dans les
+      <a href="#" id="lien-reglages">Réglages ⚙️</a>.
+    </div>
+    <button class="bouton principal" id="nouvelle-partie">✨ Nouvelle aventure</button>
+  </section>
+  <section class="carte">
+    <h2>Parties sauvegardées</h2>
+    <div id="liste-parties"><p class="discret">Aucune partie pour l'instant.</p></div>
+  </section>
+</main>
+
+<!-- ============ CRÉATION ============ -->
+<main id="ecran-creation" class="ecran cache">
+  <section class="carte">
+    <ol class="etapes" id="etapes"></ol>
+    <div id="etape-contenu"></div>
+    <div class="navigation-etapes">
+      <button class="bouton" id="etape-precedente">← Précédent</button>
+      <button class="bouton principal" id="etape-suivante">Suivant →</button>
+    </div>
+    <p class="erreur" id="erreur-creation"></p>
+  </section>
+</main>
+
+<!-- ============ JEU ============ -->
+<main id="ecran-jeu" class="ecran cache">
+  <div class="jeu">
+    <section class="recit">
+      <h2 id="titre-aventure" class="titre-aventure"></h2>
+      <div id="histoire" class="histoire" aria-live="polite"></div>
+      <div id="reflexion" class="reflexion cachee"><span class="de-anime">🎲</span> Le maître du jeu réfléchit…</div>
+      <p class="erreur" id="erreur-jeu"></p>
+      <form id="formulaire-action" class="saisie">
+        <textarea id="action" rows="2" placeholder="Que fais-tu ? (Entrée pour envoyer, Maj+Entrée pour aller à la ligne)"></textarea>
+        <button class="bouton principal" id="envoyer" type="submit">Agir</button>
+      </form>
+      <div class="suggestions" id="suggestions">
+        <button type="button" data-texte="Je regarde attentivement autour de moi.">👀 Observer</button>
+        <button type="button" data-texte="Je prends un repos court d'une heure.">⏳ Repos court</button>
+        <button type="button" data-texte="Je m'installe pour un repos long et je dors.">🌙 Repos long</button>
+        <button type="button" data-texte="Je fais le point : où en suis-je et que sais-je de ma quête ?">📜 Faire le point</button>
+      </div>
+    </section>
+    <aside class="panneau" id="panneau">
+      <div id="combat" class="combat cache"></div>
+      <button class="bouton bascule-panneau" id="bascule-panneau">📋 Fiche du personnage</button>
+      <div class="contenu-panneau">
+        <nav class="onglets">
+          <button data-onglet="fiche" class="actif">Fiche</button>
+          <button data-onglet="inventaire">Sac</button>
+          <button data-onglet="sorts">Sorts</button>
+          <button data-onglet="journal">Journal</button>
+        </nav>
+        <div id="onglet-fiche" class="onglet"></div>
+        <div id="onglet-inventaire" class="onglet cache"></div>
+        <div id="onglet-sorts" class="onglet cache"></div>
+        <div id="onglet-journal" class="onglet cache"></div>
+      </div>
+    </aside>
+  </div>
+</main>
+
+<!-- ============ RÉGLAGES ============ -->
+<dialog id="reglages">
+  <form method="dialog" id="formulaire-reglages">
+    <h2>Réglages</h2>
+    <label>Clé API OpenAI
+      <input type="password" id="cle-api" autocomplete="off" placeholder="sk-…">
+      <small id="cle-actuelle" class="discret"></small>
+    </label>
+    <p class="aide">Crée une clé sur <b>platform.openai.com → API keys</b>. Elle reste sur ton ordinateur
+      (fichier <code>config.json</code>) et n'est jamais publiée.</p>
+    <label>Modèle d'IA
+      <span class="ligne">
+        <input type="text" id="modele" list="liste-modeles">
+        <button type="button" class="bouton" id="charger-modeles">Voir la liste</button>
+      </span>
+      <datalist id="liste-modeles"></datalist>
+    </label>
+    <p class="aide">Un modèle « mini » coûte peu et suffit pour jouer ; un modèle plus grand raconte mieux.</p>
+    <details>
+      <summary>Avancé : serveur compatible OpenAI (modèle local)</summary>
+      <label>Adresse du serveur
+        <input type="text" id="base-url" placeholder="ex. http://localhost:11434/v1 pour Ollama">
+      </label>
+      <p class="aide">Laisse vide pour utiliser OpenAI.</p>
+    </details>
+    <p class="erreur" id="erreur-reglages"></p>
+    <div class="ligne fin">
+      <button class="bouton" value="annuler" formnovalidate>Annuler</button>
+      <button class="bouton principal" id="enregistrer-reglages" value="ok">Enregistrer</button>
+    </div>
+  </form>
+</dialog>
+
+<script src="/static/app.js"></script>
+</body>
+</html>

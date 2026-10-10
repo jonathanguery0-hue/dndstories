@@ -1,0 +1,577 @@
+"use strict";
+
+// ------------------------------------------------------------------ utilitaires
+
+const $ = (sel) => document.querySelector(sel);
+const $$ = (sel) => Array.from(document.querySelectorAll(sel));
+
+function echapper(texte) {
+  return String(texte ?? "").replace(/[&<>"']/g, (c) => ({
+    "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;",
+  })[c]);
+}
+
+function signe(n) { return n >= 0 ? `+${n}` : `${n}`; }
+
+// Mini-Markdown : paragraphes, **gras**, *italique*, listes simples.
+function markdown(texte) {
+  return echapper(texte)
+    .split(/\n{2,}/)
+    .map((bloc) => {
+      let html = bloc
+        .replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>")
+        .replace(/(^|[^*])\*([^*\n]+)\*/g, "$1<em>$2</em>");
+      if (/^\s*[-•] /m.test(html) && html.split("\n").every((l) => /^\s*[-•] /.test(l) || !l.trim())) {
+        return "<ul>" + html.split("\n").filter((l) => l.trim())
+          .map((l) => `<li>${l.replace(/^\s*[-•] /, "")}</li>`).join("") + "</ul>";
+      }
+      return `<p>${html.replace(/\n/g, "<br>")}</p>`;
+    })
+    .join("");
+}
+
+async function api(chemin, options = {}) {
+  const reponse = await fetch(chemin, {
+    headers: { "Content-Type": "application/json" },
+    ...options,
+    body: options.body ? JSON.stringify(options.body) : undefined,
+  });
+  let donnees = null;
+  try { donnees = await reponse.json(); } catch { /* réponse vide */ }
+  if (!reponse.ok) {
+    let message = donnees?.detail ?? `Erreur ${reponse.status}`;
+    if (Array.isArray(message)) message = message.map((m) => m.msg).join(" ; ");
+    throw new Error(message);
+  }
+  return donnees;
+}
+
+function afficherEcran(nom) {
+  $$(".ecran").forEach((e) => e.classList.add("cache"));
+  $(`#ecran-${nom}`).classList.remove("cache");
+  window.scrollTo(0, 0);
+}
+
+let REGLES = null;
+let CONFIG = null;
+
+// ------------------------------------------------------------------ accueil
+
+async function chargerAccueil() {
+  afficherEcran("accueil");
+  history.replaceState(null, "", "/");
+  CONFIG = await api("/api/config");
+  $("#alerte-config").classList.toggle("cachee", CONFIG.configure);
+  const { parties } = await api("/api/parties");
+  const liste = $("#liste-parties");
+  if (!parties.length) {
+    liste.innerHTML = '<p class="discret">Aucune partie pour l\'instant.</p>';
+    return;
+  }
+  liste.innerHTML = parties.map((p) => `
+    <div class="partie">
+      <div class="infos">
+        <strong>${echapper(p.nom)}</strong> — ${echapper(p.race)} ${echapper(p.classe)} niv. ${p.niveau}<br>
+        <small class="discret">${echapper(REGLES.scenarios[p.scenario]?.titre ?? p.scenario)} ·
+          ${new Date(p.maj_le * 1000).toLocaleString("fr-FR")}</small>
+      </div>
+      <div class="actions">
+        <button class="bouton principal" data-jouer="${p.id}">Continuer</button>
+        <button class="bouton danger" data-supprimer="${p.id}" title="Supprimer">🗑️</button>
+      </div>
+    </div>`).join("");
+}
+
+$("#liste-parties").addEventListener("click", async (e) => {
+  const jouer = e.target.closest("[data-jouer]");
+  const supprimer = e.target.closest("[data-supprimer]");
+  if (jouer) ouvrirPartie(jouer.dataset.jouer);
+  if (supprimer && confirm("Supprimer définitivement cette partie ?")) {
+    await api(`/api/parties/${supprimer.dataset.supprimer}`, { method: "DELETE" });
+    chargerAccueil();
+  }
+});
+
+$("#lien-accueil").addEventListener("click", (e) => { e.preventDefault(); chargerAccueil(); });
+$("#nouvelle-partie").addEventListener("click", () => {
+  if (!CONFIG.configure) { ouvrirReglages(); return; }
+  demarrerCreation();
+});
+
+// ------------------------------------------------------------------ réglages
+
+function ouvrirReglages() {
+  $("#cle-api").value = "";
+  $("#cle-actuelle").textContent = CONFIG.cle ? `Clé actuelle : ${CONFIG.cle} (laisse vide pour la garder)` : "";
+  $("#modele").value = CONFIG.modele;
+  $("#base-url").value = CONFIG.base_url;
+  $("#erreur-reglages").textContent = "";
+  $("#reglages").showModal();
+}
+
+$("#ouvrir-reglages").addEventListener("click", ouvrirReglages);
+$("#lien-reglages").addEventListener("click", (e) => { e.preventDefault(); ouvrirReglages(); });
+
+$("#enregistrer-reglages").addEventListener("click", async (e) => {
+  e.preventDefault();
+  try {
+    CONFIG = await api("/api/config", {
+      method: "POST",
+      body: { api_key: $("#cle-api").value, modele: $("#modele").value, base_url: $("#base-url").value },
+    });
+    $("#reglages").close();
+    $("#alerte-config").classList.toggle("cachee", CONFIG.configure);
+  } catch (err) {
+    $("#erreur-reglages").textContent = err.message;
+  }
+});
+
+$("#charger-modeles").addEventListener("click", async () => {
+  const bouton = $("#charger-modeles");
+  $("#erreur-reglages").textContent = "";
+  try {
+    // Enregistre d'abord une éventuelle nouvelle clé pour pouvoir interroger le service.
+    if ($("#cle-api").value || $("#base-url").value !== CONFIG.base_url) {
+      CONFIG = await api("/api/config", {
+        method: "POST", body: { api_key: $("#cle-api").value, base_url: $("#base-url").value },
+      });
+    }
+    bouton.disabled = true;
+    bouton.textContent = "…";
+    const { modeles } = await api("/api/modeles");
+    $("#liste-modeles").innerHTML = modeles.map((m) => `<option value="${echapper(m)}">`).join("");
+    $("#modele").value = "";
+    $("#modele").placeholder = `${modeles.length} modèles disponibles — clique pour choisir`;
+    $("#modele").focus();
+  } catch (err) {
+    $("#erreur-reglages").textContent = err.message;
+  } finally {
+    bouton.disabled = false;
+    bouton.textContent = "Voir la liste";
+  }
+});
+
+// ------------------------------------------------------------------ création de personnage
+
+const ETAPES = ["Race", "Classe", "Caractéristiques", "Compétences", "Identité", "Aventure"];
+let etape = 0;
+let creation = null;
+
+function demarrerCreation() {
+  creation = {
+    race: null, classe: null, methode: "standard", valeurs: [...REGLES.tableau_standard],
+    affectation: {}, competences: [], nom: "", historique: "", apparence: "", scenario: "brumesaule",
+  };
+  etape = 0;
+  afficherEcran("creation");
+  afficherEtape();
+}
+
+function bonusRace(race) {
+  const r = REGLES.races[race];
+  const bonus = { ...r.bonus };
+  return { bonus, libres: r.bonus_libres };
+}
+
+function caracsFinales() {
+  const res = {};
+  if (!creation.race) return res;
+  const { bonus, libres } = bonusRace(creation.race);
+  for (const c of REGLES.caracs) {
+    const i = creation.affectation[c];
+    res[c] = i === undefined ? null : creation.valeurs[i] + (bonus[c] || 0);
+  }
+  if (libres) {
+    const autres = REGLES.caracs.filter((c) => !(c in bonus) && res[c] !== null)
+      .sort((a, b) => res[b] - res[a]).slice(0, libres);
+    autres.forEach((c) => { res[c] += 1; });
+  }
+  return res;
+}
+
+function afficherEtape() {
+  $("#etapes").innerHTML = ETAPES.map((n, i) =>
+    `<li class="${i === etape ? "actif" : i < etape ? "fait" : ""}">${i + 1}. ${n}</li>`).join("");
+  $("#erreur-creation").textContent = "";
+  $("#etape-precedente").style.visibility = etape === 0 ? "hidden" : "visible";
+  $("#etape-suivante").textContent = etape === ETAPES.length - 1 ? "⚔️ Commencer l'aventure" : "Suivant →";
+  const zone = $("#etape-contenu");
+  const rendu = [rendreRace, rendreClasse, rendreCaracs, rendreCompetences, rendreIdentite, rendreAventure][etape];
+  zone.innerHTML = rendu();
+  brancherEtape();
+}
+
+function rendreRace() {
+  const cartes = Object.entries(REGLES.races).map(([nom, r]) => {
+    const bonus = Object.entries(r.bonus).length === 6 ? "+1 partout"
+      : Object.entries(r.bonus).map(([c, v]) => `${c} +${v}`).join(", ") + (r.bonus_libres ? `, +1 ×${r.bonus_libres}` : "");
+    return `<button class="choix ${creation.race === nom ? "selection" : ""}" data-race="${echapper(nom)}">
+      <strong>${echapper(nom)}</strong><small>${bonus} · ${r.vitesse} m</small></button>`;
+  }).join("");
+  const details = creation.race ? `<div class="details-choix"><b>${echapper(creation.race)}</b><ul>${
+    REGLES.races[creation.race].traits.map((t) => `<li>${echapper(t)}</li>`).join("")}</ul></div>` : "";
+  return `<h2>Choisis ta race</h2><div class="choix-grille">${cartes}</div>${details}`;
+}
+
+function rendreClasse() {
+  const cartes = Object.entries(REGLES.classes).map(([nom, c]) => `
+    <button class="choix ${creation.classe === nom ? "selection" : ""}" data-classe="${echapper(nom)}">
+      <strong>${echapper(nom)}</strong><small>${echapper(c.description)}</small>
+      <small>Dé de vie d${c.de_vie}${c.lanceur ? " · lanceur de sorts" : ""}</small></button>`).join("");
+  let details = "";
+  if (creation.classe) {
+    const c = REGLES.classes[creation.classe];
+    details = `<div class="details-choix"><b>${echapper(creation.classe)}</b><ul>
+      <li>Points de vie : ${c.de_vie} + modificateur de CON au niveau 1</li>
+      <li>Sauvegardes maîtrisées : ${c.sauvegardes.join(", ")}</li>
+      <li>Armure : ${echapper(c.armure)} · Armes : ${c.armes.map(echapper).join(", ")}</li>
+      <li>Caractéristiques importantes : ${c.conseil.slice(0, 2).join(", ")}</li></ul></div>`;
+  }
+  return `<h2>Choisis ta classe</h2><div class="choix-grille">${cartes}</div>${details}`;
+}
+
+function rendreCaracs() {
+  const { bonus } = bonusRace(creation.race);
+  const finales = caracsFinales();
+  const utilises = Object.values(creation.affectation);
+  const boites = REGLES.caracs.map((c) => {
+    const options = creation.valeurs.map((v, i) => {
+      const prise = utilises.includes(i) && creation.affectation[c] !== i;
+      return `<option value="${i}" ${creation.affectation[c] === i ? "selected" : ""} ${prise ? "disabled" : ""}>${v}</option>`;
+    }).join("");
+    const f = finales[c];
+    const m = f === null ? "" : signe(Math.floor((f - 10) / 2));
+    return `<div class="carac-boite">
+      <label for="carac-${c}">${REGLES.noms_caracs[c]}</label>
+      <select id="carac-${c}" data-carac="${c}"><option value="">—</option>${options}</select>
+      <div class="final">${f ?? "—"} <small class="discret">${m}</small></div>
+      <div class="bonus-race">${bonus[c] ? `race +${bonus[c]}` : "&nbsp;"}</div></div>`;
+  }).join("");
+  return `<h2>Répartis tes caractéristiques</h2>
+    <p class="discret">Attribue chaque valeur à une caractéristique. Pour un ${echapper(creation.classe)},
+      privilégie <b>${REGLES.classes[creation.classe].conseil.slice(0, 2).join(" et ")}</b>.</p>
+    <div class="ligne">
+      <button class="bouton ${creation.methode === "standard" ? "principal" : ""}" id="methode-standard">Valeurs standard</button>
+      <button class="bouton ${creation.methode === "des" ? "principal" : ""}" id="methode-des">🎲 Lancer les dés (4d6)</button>
+      <button class="bouton" id="auto-caracs">Répartition conseillée</button>
+    </div>
+    <p>Valeurs : <b>${creation.valeurs.join(", ")}</b></p>
+    <div class="caracs-grille">${boites}</div>`;
+}
+
+function rendreCompetences() {
+  const c = REGLES.classes[creation.classe];
+  const race = REGLES.races[creation.race];
+  const finales = caracsFinales();
+  const cases = c.competences.map((nom) => {
+    const carac = REGLES.competences[nom];
+    const b = Math.floor((finales[carac] - 10) / 2) + 2;
+    return `<label><input type="checkbox" data-competence="${echapper(nom)}"
+      ${creation.competences.includes(nom) ? "checked" : ""}> ${echapper(nom)}
+      <small class="discret">(${carac}, ${signe(b)})</small></label>`;
+  }).join("");
+  const offertes = race.competences.length ? `<p class="discret">Ta race t'offre déjà : ${race.competences.join(", ")}.</p>` : "";
+  return `<h2>Choisis ${c.nb_competences} compétences</h2>
+    <p class="discret">Tu ajoutes ton bonus de maîtrise (+2) aux tests de ces compétences.
+      Choisies : <b id="compte-competences">${creation.competences.length}</b> / ${c.nb_competences}</p>
+    ${offertes}<div class="competences-liste">${cases}</div>`;
+}
+
+function rendreIdentite() {
+  return `<h2>Qui es-tu ?</h2>
+    <label>Nom du personnage<input type="text" id="nom-perso" maxlength="60" value="${echapper(creation.nom)}"></label>
+    <label>Historique <small class="discret">(facultatif : origine, motivations, secrets… le MJ s'en servira)</small>
+      <textarea id="historique-perso" rows="4" maxlength="1500">${echapper(creation.historique)}</textarea></label>
+    <label>Apparence et personnalité <small class="discret">(facultatif)</small>
+      <textarea id="apparence-perso" rows="3" maxlength="800">${echapper(creation.apparence)}</textarea></label>`;
+}
+
+function rendreAventure() {
+  const cartes = Object.entries(REGLES.scenarios).map(([id, s]) => `
+    <button class="choix ${creation.scenario === id ? "selection" : ""}" data-scenario="${id}">
+      <strong>${echapper(s.titre)}</strong><small>${echapper(s.accroche)}</small><small>${echapper(s.niveau)}</small>
+    </button>`).join("");
+  return `<h2>Choisis ton aventure</h2><div class="choix-grille">${cartes}</div>`;
+}
+
+function brancherEtape() {
+  const zone = $("#etape-contenu");
+  zone.querySelectorAll("[data-race]").forEach((b) => b.addEventListener("click", () => {
+    creation.race = b.dataset.race; afficherEtape();
+  }));
+  zone.querySelectorAll("[data-classe]").forEach((b) => b.addEventListener("click", () => {
+    if (creation.classe !== b.dataset.classe) creation.competences = [];
+    creation.classe = b.dataset.classe; afficherEtape();
+  }));
+  zone.querySelectorAll("[data-scenario]").forEach((b) => b.addEventListener("click", () => {
+    creation.scenario = b.dataset.scenario; afficherEtape();
+  }));
+  zone.querySelectorAll("[data-carac]").forEach((s) => s.addEventListener("change", () => {
+    if (s.value === "") delete creation.affectation[s.dataset.carac];
+    else creation.affectation[s.dataset.carac] = Number(s.value);
+    afficherEtape();
+  }));
+  zone.querySelectorAll("[data-competence]").forEach((cb) => cb.addEventListener("change", () => {
+    const max = REGLES.classes[creation.classe].nb_competences;
+    const nom = cb.dataset.competence;
+    if (cb.checked) {
+      if (creation.competences.length >= max) { cb.checked = false; return; }
+      creation.competences.push(nom);
+    } else {
+      creation.competences = creation.competences.filter((c) => c !== nom);
+    }
+    $("#compte-competences").textContent = creation.competences.length;
+  }));
+  const standard = $("#methode-standard");
+  if (standard) {
+    standard.addEventListener("click", () => {
+      creation.methode = "standard"; creation.valeurs = [...REGLES.tableau_standard];
+      creation.affectation = {}; afficherEtape();
+    });
+    $("#methode-des").addEventListener("click", async () => {
+      const { valeurs } = await api("/api/caracs/lancer", { method: "POST" });
+      creation.methode = "des"; creation.valeurs = valeurs.sort((a, b) => b - a);
+      creation.affectation = {}; afficherEtape();
+    });
+    $("#auto-caracs").addEventListener("click", () => {
+      const ordre = REGLES.classes[creation.classe].conseil;
+      const indices = creation.valeurs.map((v, i) => i).sort((a, b) => creation.valeurs[b] - creation.valeurs[a]);
+      creation.affectation = {};
+      ordre.forEach((c, rang) => { creation.affectation[c] = indices[rang]; });
+      afficherEtape();
+    });
+  }
+  const nom = $("#nom-perso");
+  if (nom) {
+    nom.addEventListener("input", () => { creation.nom = nom.value; });
+    $("#historique-perso").addEventListener("input", (e) => { creation.historique = e.target.value; });
+    $("#apparence-perso").addEventListener("input", (e) => { creation.apparence = e.target.value; });
+    nom.focus();
+  }
+}
+
+function validerEtape() {
+  switch (etape) {
+    case 0: return creation.race ? "" : "Choisis une race.";
+    case 1: return creation.classe ? "" : "Choisis une classe.";
+    case 2: return Object.keys(creation.affectation).length === 6 ? "" : "Attribue une valeur à chaque caractéristique.";
+    case 3: {
+      const n = REGLES.classes[creation.classe].nb_competences;
+      return creation.competences.length === n ? "" : `Choisis exactement ${n} compétences.`;
+    }
+    case 4: return creation.nom.trim() ? "" : "Donne un nom à ton personnage.";
+    default: return "";
+  }
+}
+
+$("#etape-precedente").addEventListener("click", () => { if (etape > 0) { etape -= 1; afficherEtape(); } });
+$("#etape-suivante").addEventListener("click", async () => {
+  const erreur = validerEtape();
+  if (erreur) { $("#erreur-creation").textContent = erreur; return; }
+  if (etape < ETAPES.length - 1) { etape += 1; afficherEtape(); return; }
+  const caracs = {};
+  for (const c of REGLES.caracs) caracs[c] = creation.valeurs[creation.affectation[c]];
+  const bouton = $("#etape-suivante");
+  bouton.disabled = true;
+  try {
+    const partie = await api("/api/parties", {
+      method: "POST",
+      body: {
+        nom: creation.nom, race: creation.race, classe: creation.classe, caracs,
+        competences: creation.competences, historique: creation.historique,
+        apparence: creation.apparence, scenario: creation.scenario,
+      },
+    });
+    ouvrirPartie(partie.id, partie);
+  } catch (err) {
+    $("#erreur-creation").textContent = err.message;
+  } finally {
+    bouton.disabled = false;
+  }
+});
+
+// ------------------------------------------------------------------ jeu
+
+let PARTIE = null;
+let enAttente = false;
+
+async function ouvrirPartie(id, deja = null) {
+  PARTIE = deja ?? await api(`/api/parties/${id}`);
+  history.replaceState(null, "", `/#${id}`);
+  afficherEcran("jeu");
+  $("#titre-aventure").textContent = PARTIE.titre;
+  $("#erreur-jeu").textContent = "";
+  rendreHistoire();
+  rendrePanneau();
+  if (!PARTIE.affichage.length) envoyer("");  // introduction de l'aventure
+  else $("#action").focus();
+}
+
+function rendreEntree(entree) {
+  if (entree.type === "mj") return `<div class="mj">${markdown(entree.texte)}</div>`;
+  if (entree.type === "joueur") return `<div class="joueur">${echapper(entree.texte)}</div>`;
+  return `<div class="${entree.type === "systeme" ? "systeme" : "de"}">${echapper(entree.texte)}</div>`;
+}
+
+function rendreHistoire() {
+  const h = $("#histoire");
+  h.innerHTML = PARTIE.affichage.map(rendreEntree).join("")
+    || '<p class="discret"><i>L\'aventure va commencer…</i></p>';
+  h.scrollTop = h.scrollHeight;
+}
+
+function classeJauge(v, max) {
+  const r = max ? v / max : 0;
+  return r > 0.5 ? "" : r > 0.25 ? "moyen" : "bas";
+}
+
+function rendrePanneau() {
+  const p = PARTIE.personnage;
+  const etat = p.mort.mort ? "Mort" : p.pv === 0 ? (p.mort.stable ? "Stabilisé" : "Inconscient") : "";
+  const pctPv = Math.round((p.pv / p.pv_max) * 100);
+  const prochain = p.xp_prochain ? ` / ${p.xp_prochain}` : "";
+
+  $("#onglet-fiche").innerHTML = `
+    <div class="entete-perso">
+      <h2>${echapper(p.nom)}</h2>
+      <div class="sous">${echapper(p.race)} · ${echapper(p.classe)} niveau ${p.niveau}</div>
+    </div>
+    <p style="margin:.6rem 0 .2rem">PV <b>${p.pv}</b> / ${p.pv_max}
+      ${etat ? `<span class="pastille alerte-etat">${etat}</span>` : ""}
+      ${p.pv === 0 && !p.mort.mort ? `<small class="discret"> (${p.mort.succes}✓ ${p.mort.echecs}✗)</small>` : ""}</p>
+    <div class="jauge ${classeJauge(p.pv, p.pv_max)}"><span style="width:${pctPv}%"></span></div>
+    <div class="stats">
+      <div class="stat"><b>${p.ca}</b><small>CA</small></div>
+      <div class="stat"><b>${signe(p.mods.DEX)}</b><small>Initiative</small></div>
+      <div class="stat"><b>${p.vitesse} m</b><small>Vitesse</small></div>
+      <div class="stat"><b>+${p.maitrise}</b><small>Maîtrise</small></div>
+      <div class="stat"><b>${p.xp}</b><small>XP${prochain}</small></div>
+      <div class="stat"><b>${p.des_de_vie.restants}d${p.des_de_vie.faces}</b><small>Dés de vie</small></div>
+    </div>
+    <div class="caracs-mini">${REGLES.caracs.map((c) => `
+      <div><small>${c}</small><b>${signe(p.mods[c])}</b><span>${p.caracs[c]}</span></div>`).join("")}</div>
+    ${p.conditions.length ? `<p>Conditions : ${p.conditions.map((c) => `<span class="pastille">${echapper(c)}</span>`).join(" ")}</p>` : ""}
+    <h3>Attaques</h3>
+    <ul class="liste-simple">${p.attaques.map((a) => `
+      <li><span>${echapper(a.nom)}</span><span class="valeur">${signe(a.bonus)} · ${echapper(a.degats)}</span></li>`).join("")}</ul>
+    <h3>Capacités</h3>
+    <ul class="liste-simple">${p.capacites.map((c) => `
+      <li class="bloc"><b>${echapper(c.nom)}</b>${c.utilisations_max ? ` <span class="pastille">${c.utilisations}/${c.utilisations_max}</span>` : ""}
+        <span class="desc">${echapper(c.description)}</span></li>`).join("")}
+      ${p.traits.map((t) => `<li class="bloc"><span class="desc">${echapper(t)}</span></li>`).join("")}</ul>
+    <h3>Sauvegardes</h3>
+    <ul class="liste-simple">${p.toutes_sauvegardes.map((s) => `
+      <li class="${s.maitrise ? "maitrise" : "non-maitrise"}"><span>${s.maitrise ? "●" : "○"} ${REGLES.noms_caracs[s.carac]}</span>
+      <span class="valeur">${signe(s.bonus)}</span></li>`).join("")}</ul>
+    <h3>Compétences</h3>
+    <ul class="liste-simple">${p.toutes_competences.map((c) => `
+      <li class="${c.maitrise ? "maitrise" : "non-maitrise"}"><span>${c.maitrise ? "●" : "○"} ${echapper(c.nom)}
+      <small class="discret">(${c.carac})</small></span><span class="valeur">${signe(c.bonus)}</span></li>`).join("")}</ul>`;
+
+  $("#onglet-inventaire").innerHTML = `
+    <p>💰 <b>${p.or}</b> pièces d'or</p>
+    <ul class="liste-simple">${p.inventaire.map((o) => `
+      <li><span>${echapper(o.nom)}</span><span class="valeur">${o.quantite > 1 ? "×" + o.quantite : ""}</span></li>`).join("")
+      || "<li class='discret'>Sac vide</li>"}</ul>
+    <h3>Armure</h3><p>${echapper(p.armure)}${p.bouclier ? " + bouclier" : ""}${p.armure_du_mage ? " (Armure du mage)" : ""}</p>`;
+
+  if (p.sorts.length) {
+    const emplacements = Object.entries(p.emplacements).map(([n, e]) =>
+      `<span>Niv. ${n} <span class="pions">${"◆".repeat(e.restants)}${"◇".repeat(e.max - e.restants)}</span></span>`).join("");
+    $("#onglet-sorts").innerHTML = `
+      <p>Attaque de sort <b>${signe(p.sort_attaque)}</b> · DD de sauvegarde <b>${p.sort_dd}</b></p>
+      <div class="emplacements">${emplacements}</div>
+      <ul class="liste-simple">${p.sorts.map((s) => `
+        <li class="bloc"><b>${echapper(s.nom)}</b> <span class="pastille">${s.niveau === 0 ? "mineur" : "niv. " + s.niveau}</span>
+        <span class="desc">${echapper(s.description)}</span></li>`).join("")}</ul>`;
+  } else {
+    $("#onglet-sorts").innerHTML = '<p class="discret">Ce personnage ne lance pas de sorts.</p>';
+  }
+
+  $("#onglet-journal").innerHTML = PARTIE.journal.length
+    ? `<ul class="liste-simple">${PARTIE.journal.map((n) => `<li class="bloc">${echapper(n)}</li>`).join("")}</ul>`
+    : '<p class="discret">Le maître du jeu notera ici les personnages, indices et quêtes importants.</p>';
+
+  const combat = $("#combat");
+  if (PARTIE.combat) {
+    combat.classList.remove("cache");
+    combat.innerHTML = `<h3>⚔️ Combat — round ${PARTIE.combat.round}</h3>
+      <small class="discret">Initiative : ${PARTIE.combat.ordre.map((o) => echapper(o.nom)).join(" → ")}</small>
+      ${PARTIE.combat.ennemis.map((e) => `
+        <div class="ennemi ${e.etat === "vaincu" ? "vaincu" : ""}">
+          <div class="nom-ennemi"><span>${echapper(e.id)} ${e.etat !== "actif" ? `<span class="pastille">${e.etat}</span>` : ""}</span>
+          <span class="discret">CA ${e.ca} · ${e.pv}/${e.pv_max}</span></div>
+          <div class="jauge"><span style="width:${Math.round((e.pv / e.pv_max) * 100)}%"></span></div>
+        </div>`).join("")}`;
+  } else {
+    combat.classList.add("cache");
+  }
+}
+
+$$(".onglets button").forEach((b) => b.addEventListener("click", () => {
+  $$(".onglets button").forEach((x) => x.classList.toggle("actif", x === b));
+  $$(".onglet").forEach((o) => o.classList.toggle("cache", o.id !== `onglet-${b.dataset.onglet}`));
+}));
+
+$("#bascule-panneau").addEventListener("click", () => $("#panneau").classList.toggle("ouvert"));
+
+async function envoyer(texte) {
+  if (enAttente) return;
+  enAttente = true;
+  $("#envoyer").disabled = true;
+  $("#erreur-jeu").textContent = "";
+  $("#reflexion").classList.remove("cachee");
+  const h = $("#histoire");
+  if (texte) {
+    h.insertAdjacentHTML("beforeend", rendreEntree({ type: "joueur", texte }));
+    h.scrollTop = h.scrollHeight;
+  }
+  try {
+    PARTIE = await api(`/api/parties/${PARTIE.id}/tour`, { method: "POST", body: { texte } });
+    $("#action").value = "";
+    rendreHistoire();
+    rendrePanneau();
+  } catch (err) {
+    $("#erreur-jeu").textContent = err.message + (texte ? " Ton action est restée dans la zone de texte." : "");
+    if (texte) h.lastElementChild?.remove();
+    if (!texte) {
+      $("#erreur-jeu").insertAdjacentHTML("beforeend",
+        ' <button class="bouton" id="reessayer-intro">Réessayer</button>');
+      $("#reessayer-intro").addEventListener("click", () => envoyer(""));
+    }
+  } finally {
+    enAttente = false;
+    $("#envoyer").disabled = false;
+    $("#reflexion").classList.add("cachee");
+    $("#action").focus();
+  }
+}
+
+$("#formulaire-action").addEventListener("submit", (e) => {
+  e.preventDefault();
+  const texte = $("#action").value.trim();
+  if (texte) envoyer(texte);
+});
+
+$("#action").addEventListener("keydown", (e) => {
+  if (e.key === "Enter" && !e.shiftKey && !e.isComposing) {
+    e.preventDefault();
+    $("#formulaire-action").requestSubmit();
+  }
+});
+
+$("#suggestions").addEventListener("click", (e) => {
+  const b = e.target.closest("[data-texte]");
+  if (b) { $("#action").value = b.dataset.texte; $("#action").focus(); }
+});
+
+// ------------------------------------------------------------------ démarrage
+
+(async function demarrer() {
+  const id = location.hash.slice(1);
+  REGLES = await api("/api/regles");
+  await chargerAccueil();
+  if (/^[0-9a-f]{12}$/.test(id)) {
+    try { await ouvrirPartie(id); } catch { /* partie supprimée : on reste à l'accueil */ }
+  }
+})();
