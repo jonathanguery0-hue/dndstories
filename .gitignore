@@ -1,7 +1,2 @@
-.venv/
-__pycache__/
-*.pyc
-.pytest_cache/
-# Données personnelles : clé API et parties sauvegardées
-config.json
-sauvegardes/
+node_modules/
+.DS_Store

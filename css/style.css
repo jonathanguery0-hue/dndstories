@@ -86,7 +86,9 @@ a { color: var(--or); }
 }
 .partie:first-child { border-top: none; }
 .partie .infos { min-width: 0; }
-.partie .actions { display: flex; gap: .5rem; flex-shrink: 0; }
+.partie .actions { display: flex; gap: .5rem; flex-shrink: 0; flex-wrap: wrap; }
+.import { margin-top: 1rem; }
+.import + .aide { margin-top: .6rem; }
 
 /* ---- Création */
 .etapes {

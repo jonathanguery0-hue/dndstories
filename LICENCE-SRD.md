@@ -11,4 +11,4 @@ available at https://creativecommons.org/licenses/by/4.0/legalcode.
 Ce projet n'est ni affilié ni approuvé par Wizards of the Coast. « Dungeons & Dragons » est une
 marque de Wizards of the Coast LLC ; elle n'est pas utilisée dans le nom ni le contenu du jeu.
 
-Les aventures (`app/scenarios.py`) sont des créations originales.
+Les aventures (`js/scenarios.js`) sont des créations originales.

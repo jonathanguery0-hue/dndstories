@@ -1,4 +1,10 @@
-"use strict";
+import * as des from "./des.js";
+import * as srd from "./srd.js";
+import { SCENARIOS } from "./scenarios.js";
+import { creerPersonnage, vueFiche } from "./personnage.js";
+import { nouvellePartie } from "./moteur.js";
+import { clientOpenAI, condenserMemoire, jouerTour, listerModeles } from "./mj.js";
+import * as stockage from "./stockage.js";
 
 // ------------------------------------------------------------------ utilitaires
 
@@ -18,7 +24,7 @@ function markdown(texte) {
   return echapper(texte)
     .split(/\n{2,}/)
     .map((bloc) => {
-      let html = bloc
+      const html = bloc
         .replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>")
         .replace(/(^|[^*])\*([^*\n]+)\*/g, "$1<em>$2</em>");
       if (/^\s*[-•] /m.test(html) && html.split("\n").every((l) => /^\s*[-•] /.test(l) || !l.trim())) {
@@ -30,39 +36,43 @@ function markdown(texte) {
     .join("");
 }
 
-async function api(chemin, options = {}) {
-  const reponse = await fetch(chemin, {
-    headers: { "Content-Type": "application/json" },
-    ...options,
-    body: options.body ? JSON.stringify(options.body) : undefined,
-  });
-  let donnees = null;
-  try { donnees = await reponse.json(); } catch { /* réponse vide */ }
-  if (!reponse.ok) {
-    let message = donnees?.detail ?? `Erreur ${reponse.status}`;
-    if (Array.isArray(message)) message = message.map((m) => m.msg).join(" ; ");
-    throw new Error(message);
-  }
-  return donnees;
-}
-
 function afficherEcran(nom) {
   $$(".ecran").forEach((e) => e.classList.add("cache"));
   $(`#ecran-${nom}`).classList.remove("cache");
   window.scrollTo(0, 0);
 }
 
-let REGLES = null;
-let CONFIG = null;
+function telecharger(nomFichier, contenu) {
+  const url = URL.createObjectURL(new Blob([contenu], { type: "application/json" }));
+  const lien = document.createElement("a");
+  lien.href = url;
+  lien.download = nomFichier;
+  document.body.append(lien);
+  lien.click();
+  lien.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+const REGLES = {
+  caracs: srd.CARACS,
+  noms_caracs: srd.NOMS_CARACS,
+  tableau_standard: srd.TABLEAU_STANDARD,
+  races: srd.RACES,
+  classes: srd.CLASSES,
+  competences: srd.COMPETENCES,
+  scenarios: SCENARIOS,
+};
+let CONFIG = stockage.chargerConfig();
 
 // ------------------------------------------------------------------ accueil
 
-async function chargerAccueil() {
+function chargerAccueil() {
   afficherEcran("accueil");
-  history.replaceState(null, "", "/");
-  CONFIG = await api("/api/config");
-  $("#alerte-config").classList.toggle("cachee", CONFIG.configure);
-  const { parties } = await api("/api/parties");
+  history.replaceState(null, "", location.pathname);
+  CONFIG = stockage.chargerConfig();
+  $("#alerte-config").classList.toggle("cachee", stockage.estConfigure(CONFIG));
+  $("#erreur-accueil").textContent = "";
+  const parties = stockage.listerParties();
   const liste = $("#liste-parties");
   if (!parties.length) {
     liste.innerHTML = '<p class="discret">Aucune partie pour l\'instant.</p>';
@@ -77,24 +87,52 @@ async function chargerAccueil() {
       </div>
       <div class="actions">
         <button class="bouton principal" data-jouer="${p.id}">Continuer</button>
+        <button class="bouton" data-exporter="${p.id}" title="Exporter (télécharger la sauvegarde)">💾</button>
         <button class="bouton danger" data-supprimer="${p.id}" title="Supprimer">🗑️</button>
       </div>
     </div>`).join("");
 }
 
-$("#liste-parties").addEventListener("click", async (e) => {
+$("#liste-parties").addEventListener("click", (e) => {
   const jouer = e.target.closest("[data-jouer]");
+  const exporter = e.target.closest("[data-exporter]");
   const supprimer = e.target.closest("[data-supprimer]");
   if (jouer) ouvrirPartie(jouer.dataset.jouer);
+  if (exporter) {
+    const partie = stockage.charger(exporter.dataset.exporter);
+    if (partie) {
+      const nom = partie.personnage.nom.replace(/[^\p{L}\p{N}_-]+/gu, "_");
+      telecharger(`contes-dragons-${nom}.json`, JSON.stringify(partie));
+    }
+  }
   if (supprimer && confirm("Supprimer définitivement cette partie ?")) {
-    await api(`/api/parties/${supprimer.dataset.supprimer}`, { method: "DELETE" });
+    stockage.supprimer(supprimer.dataset.supprimer);
     chargerAccueil();
+  }
+});
+
+$("#importer").addEventListener("click", () => $("#fichier-import").click());
+$("#fichier-import").addEventListener("change", async (e) => {
+  const fichier = e.target.files[0];
+  e.target.value = "";
+  if (!fichier) return;
+  try {
+    let donnees;
+    try { donnees = JSON.parse(await fichier.text()); } catch { donnees = null; }
+    const partie = stockage.validerImport(donnees);
+    if (stockage.charger(partie.id) && !confirm("Cette partie existe déjà ici. La remplacer par le fichier importé ?")) {
+      return;
+    }
+    stockage.sauvegarder(partie);
+    chargerAccueil();
+  } catch (err) {
+    $("#erreur-accueil").textContent = err.message;
   }
 });
 
 $("#lien-accueil").addEventListener("click", (e) => { e.preventDefault(); chargerAccueil(); });
 $("#nouvelle-partie").addEventListener("click", () => {
-  if (!CONFIG.configure) { ouvrirReglages(); return; }
+  if (!stockage.estConfigure(CONFIG)) { ouvrirReglages(); return; }
   demarrerCreation();
 });
 
@@ -102,25 +140,31 @@ $("#nouvelle-partie").addEventListener("click", () => {
 
 function ouvrirReglages() {
   $("#cle-api").value = "";
-  $("#cle-actuelle").textContent = CONFIG.cle ? `Clé actuelle : ${CONFIG.cle} (laisse vide pour la garder)` : "";
+  $("#cle-actuelle").textContent = CONFIG.cle
+    ? `Clé actuelle : ${stockage.masquer(CONFIG.cle)} (laisse vide pour la garder)` : "";
   $("#modele").value = CONFIG.modele;
-  $("#base-url").value = CONFIG.base_url;
+  $("#base-url").value = CONFIG.adresse;
   $("#erreur-reglages").textContent = "";
   $("#reglages").showModal();
+}
+
+function valeursReglages() {
+  return {
+    cle: $("#cle-api").value.trim() || CONFIG.cle,
+    modele: $("#modele").value.trim() || CONFIG.modele,
+    adresse: $("#base-url").value.trim(),
+  };
 }
 
 $("#ouvrir-reglages").addEventListener("click", ouvrirReglages);
 $("#lien-reglages").addEventListener("click", (e) => { e.preventDefault(); ouvrirReglages(); });
 
-$("#enregistrer-reglages").addEventListener("click", async (e) => {
+$("#enregistrer-reglages").addEventListener("click", (e) => {
   e.preventDefault();
   try {
-    CONFIG = await api("/api/config", {
-      method: "POST",
-      body: { api_key: $("#cle-api").value, modele: $("#modele").value, base_url: $("#base-url").value },
-    });
+    CONFIG = stockage.enregistrerConfig(valeursReglages());
     $("#reglages").close();
-    $("#alerte-config").classList.toggle("cachee", CONFIG.configure);
+    $("#alerte-config").classList.toggle("cachee", stockage.estConfigure(CONFIG));
   } catch (err) {
     $("#erreur-reglages").textContent = err.message;
   }
@@ -129,16 +173,15 @@ $("#enregistrer-reglages").addEventListener("click", async (e) => {
 $("#charger-modeles").addEventListener("click", async () => {
   const bouton = $("#charger-modeles");
   $("#erreur-reglages").textContent = "";
+  const v = valeursReglages();
+  if (!v.cle && !v.adresse) {
+    $("#erreur-reglages").textContent = "Colle d'abord ta clé API.";
+    return;
+  }
+  bouton.disabled = true;
+  bouton.textContent = "…";
   try {
-    // Enregistre d'abord une éventuelle nouvelle clé pour pouvoir interroger le service.
-    if ($("#cle-api").value || $("#base-url").value !== CONFIG.base_url) {
-      CONFIG = await api("/api/config", {
-        method: "POST", body: { api_key: $("#cle-api").value, base_url: $("#base-url").value },
-      });
-    }
-    bouton.disabled = true;
-    bouton.textContent = "…";
-    const { modeles } = await api("/api/modeles");
+    const modeles = await listerModeles(v);
     $("#liste-modeles").innerHTML = modeles.map((m) => `<option value="${echapper(m)}">`).join("");
     $("#modele").value = "";
     $("#modele").placeholder = `${modeles.length} modèles disponibles — clique pour choisir`;
@@ -270,7 +313,7 @@ function rendreCompetences() {
       ${creation.competences.includes(nom) ? "checked" : ""}> ${echapper(nom)}
       <small class="discret">(${carac}, ${signe(b)})</small></label>`;
   }).join("");
-  const offertes = race.competences.length ? `<p class="discret">Ta race t'offre déjà : ${race.competences.join(", ")}.</p>` : "";
+  const offertes = race.competences?.length ? `<p class="discret">Ta race t'offre déjà : ${race.competences.join(", ")}.</p>` : "";
   return `<h2>Choisis ${c.nb_competences} compétences</h2>
     <p class="discret">Tu ajoutes ton bonus de maîtrise (+2) aux tests de ces compétences.
       Choisies : <b id="compte-competences">${creation.competences.length}</b> / ${c.nb_competences}</p>
@@ -328,8 +371,8 @@ function brancherEtape() {
       creation.methode = "standard"; creation.valeurs = [...REGLES.tableau_standard];
       creation.affectation = {}; afficherEtape();
     });
-    $("#methode-des").addEventListener("click", async () => {
-      const { valeurs } = await api("/api/caracs/lancer", { method: "POST" });
+    $("#methode-des").addEventListener("click", () => {
+      const valeurs = Array.from({ length: 6 }, () => des.lancer("4d6kh3").total);
       creation.methode = "des"; creation.valeurs = valeurs.sort((a, b) => b - a);
       creation.affectation = {}; afficherEtape();
     });
@@ -365,28 +408,22 @@ function validerEtape() {
 }
 
 $("#etape-precedente").addEventListener("click", () => { if (etape > 0) { etape -= 1; afficherEtape(); } });
-$("#etape-suivante").addEventListener("click", async () => {
+$("#etape-suivante").addEventListener("click", () => {
   const erreur = validerEtape();
   if (erreur) { $("#erreur-creation").textContent = erreur; return; }
   if (etape < ETAPES.length - 1) { etape += 1; afficherEtape(); return; }
   const caracs = {};
   for (const c of REGLES.caracs) caracs[c] = creation.valeurs[creation.affectation[c]];
-  const bouton = $("#etape-suivante");
-  bouton.disabled = true;
   try {
-    const partie = await api("/api/parties", {
-      method: "POST",
-      body: {
-        nom: creation.nom, race: creation.race, classe: creation.classe, caracs,
-        competences: creation.competences, historique: creation.historique,
-        apparence: creation.apparence, scenario: creation.scenario,
-      },
+    const perso = creerPersonnage({
+      nom: creation.nom, race: creation.race, classe: creation.classe, caracs,
+      competences: creation.competences, historique: creation.historique, apparence: creation.apparence,
     });
-    ouvrirPartie(partie.id, partie);
+    const partie = nouvellePartie(perso, creation.scenario);
+    stockage.sauvegarder(partie);
+    ouvrirPartie(partie.id);
   } catch (err) {
     $("#erreur-creation").textContent = err.message;
-  } finally {
-    bouton.disabled = false;
   }
 });
 
@@ -395,11 +432,17 @@ $("#etape-suivante").addEventListener("click", async () => {
 let PARTIE = null;
 let enAttente = false;
 
-async function ouvrirPartie(id, deja = null) {
-  PARTIE = deja ?? await api(`/api/parties/${id}`);
-  history.replaceState(null, "", `/#${id}`);
+function ouvrirPartie(id) {
+  const partie = stockage.charger(id);
+  if (!partie) {
+    chargerAccueil();
+    $("#erreur-accueil").textContent = "Cette partie est introuvable dans ce navigateur.";
+    return;
+  }
+  PARTIE = partie;
+  history.replaceState(null, "", `${location.pathname}#${id}`);
   afficherEcran("jeu");
-  $("#titre-aventure").textContent = PARTIE.titre;
+  $("#titre-aventure").textContent = REGLES.scenarios[PARTIE.scenario]?.titre ?? "";
   $("#erreur-jeu").textContent = "";
   rendreHistoire();
   rendrePanneau();
@@ -426,7 +469,7 @@ function classeJauge(v, max) {
 }
 
 function rendrePanneau() {
-  const p = PARTIE.personnage;
+  const p = vueFiche(PARTIE.personnage);
   const etat = p.mort.mort ? "Mort" : p.pv === 0 ? (p.mort.stable ? "Stabilisé" : "Inconscient") : "";
   const pctPv = Math.round((p.pv / p.pv_max) * 100);
   const prochain = p.xp_prochain ? ` / ${p.xp_prochain}` : "";
@@ -527,7 +570,13 @@ async function envoyer(texte) {
     h.scrollTop = h.scrollHeight;
   }
   try {
-    PARTIE = await api(`/api/parties/${PARTIE.id}/tour`, { method: "POST", body: { texte } });
+    if (!stockage.estConfigure(CONFIG)) throw new Error("Aucune clé API configurée. Ouvre les Réglages (⚙️) pour l'ajouter.");
+    const appeler = clientOpenAI(CONFIG);
+    // On joue le tour sur une copie : en cas d'erreur, la partie reste intacte et on peut réessayer.
+    const copie = structuredClone(PARTIE);
+    await jouerTour(copie, texte.slice(0, 2000), appeler);
+    try { await condenserMemoire(copie, appeler); } catch { /* on réessaiera au prochain tour */ }
+    PARTIE = copie;
     $("#action").value = "";
     rendreHistoire();
     rendrePanneau();
@@ -539,6 +588,11 @@ async function envoyer(texte) {
         ' <button class="bouton" id="reessayer-intro">Réessayer</button>');
       $("#reessayer-intro").addEventListener("click", () => envoyer(""));
     }
+  }
+  try {
+    stockage.sauvegarder(PARTIE);
+  } catch (err) {
+    $("#erreur-jeu").textContent = err.message;
   } finally {
     enAttente = false;
     $("#envoyer").disabled = false;
@@ -567,11 +621,6 @@ $("#suggestions").addEventListener("click", (e) => {
 
 // ------------------------------------------------------------------ démarrage
 
-(async function demarrer() {
-  const id = location.hash.slice(1);
-  REGLES = await api("/api/regles");
-  await chargerAccueil();
-  if (/^[0-9a-f]{12}$/.test(id)) {
-    try { await ouvrirPartie(id); } catch { /* partie supprimée : on reste à l'accueil */ }
-  }
-})();
+const idDepart = location.hash.slice(1);
+chargerAccueil();
+if (/^[0-9a-f]{12}$/.test(idDepart)) ouvrirPartie(idDepart);

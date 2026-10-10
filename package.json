@@ -1,0 +1,11 @@
+{
+  "name": "contes-et-dragons",
+  "private": true,
+  "type": "module",
+  "description": "Jeu de rôle textuel dans le navigateur avec une IA maître du jeu",
+  "license": "MIT",
+  "scripts": {
+    "test": "node --test",
+    "serve": "python3 -m http.server 8000"
+  }
+}
