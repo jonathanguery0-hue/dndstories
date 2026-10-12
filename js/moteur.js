@@ -6,6 +6,7 @@
 
 import * as des from "./des.js";
 import * as srd from "./srd.js";
+import { monstreSRD } from "./regles.js";
 import {
   bonusAttaqueArme, bonusAttaqueSort, bonusCompetence, bonusDegatsArme, bonusSauvegarde, ca, ddSort,
   enRage, gagnerNiveau, mod, resistances, signe, sortsConnus,
@@ -251,12 +252,16 @@ export class Moteur {
       const cleModele = Object.keys(srd.MONSTRES).find((k) => k.toLowerCase() === minus(nomModele));
       const nom = groupe.nom || nomModele || "Ennemi";
       const nombre = Math.max(1, Math.min(Number(groupe.nombre) || 1, 12));
-      const base = { ...(cleModele ? srd.MONSTRES[cleModele] : {}) };
+      // Bestiaire du jeu d'abord, puis les 300+ monstres du SRD complet (noms anglais : « Owlbear »).
+      const base = { ...(cleModele ? srd.MONSTRES[cleModele] : monstreSRD(nomModele) ?? {}) };
+      delete base.nom;
+      delete base.multiattaque;
       for (const cle of ["ca", "pv", "attaque", "degats", "type_degats", "arme", "sauvegarde", "dex", "xp"]) {
         if (groupe[cle] !== undefined && groupe[cle] !== null && groupe[cle] !== "") base[cle] = groupe[cle];
       }
       if (["ca", "pv", "attaque", "degats"].some((c) => base[c] === undefined)) {
-        throw new ErreurAction(`« ${nom} » n'est pas dans le bestiaire : précisez ca, pv, attaque et degats. `
+        throw new ErreurAction(`« ${nomModele} » n'est ni dans le bestiaire ni dans le SRD : précisez ca, pv, attaque `
+          + `et degats, ou utilisez le nom anglais d'un monstre du SRD (consulter_regles). `
           + `Bestiaire : ${Object.keys(srd.MONSTRES).join(", ")}`);
       }
       for (let i = 0; i < nombre; i++) {

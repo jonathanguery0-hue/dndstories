@@ -2,6 +2,7 @@
 
 import * as srd from "./srd.js";
 import { ErreurAction, Moteur } from "./moteur.js";
+import { CATEGORIES, chargerRegles, rechercher } from "./regles.js";
 import { resumeTexte } from "./personnage.js";
 import { SCENARIOS } from "./scenarios.js";
 
@@ -99,6 +100,13 @@ export const OUTILS = [
     { type: { type: "string", enum: ["court", "long"] } }, ["type"]),
   outil("modifier_condition", "Ajoute ou retire une condition (empoisonné, effrayé, à terre, entravé…).",
     { action: { type: "string", enum: ["ajouter", "retirer"] }, condition: STR }, ["action", "condition"]),
+  outil("consulter_regles",
+    "Consulte le SRD 5.1 complet (en anglais) : règles, conditions, sorts, monstres, objets magiques, équipement, "
+    + "capacités de classe, traits raciaux. À utiliser en cas de doute plutôt que d'inventer une règle.",
+    {
+      recherche: { type: "string", description: "Terme à chercher, de préférence en anglais (ex. 'Grappled', 'Fireball', 'Owlbear', 'Opportunity Attacks')" },
+      categorie: { type: "string", enum: CATEGORIES, description: "Pour restreindre la recherche (facultatif)" },
+    }, ["recherche"]),
   outil("noter_journal", "Note un fait important à retenir pour la suite (PNJ rencontré, indice, quête, promesse, lieu). "
     + "Le journal est visible par le joueur : pas de secrets dedans.",
     { note: STR }, ["note"]),
@@ -138,6 +146,12 @@ jouent pas. Quand le combat est fini, appelle fin_combat.
 raconte une fin digne et propose de relire son épopée.
 - Récompense l'exploration et les bonnes idées avec donner_xp (25 à 100 XP par étape importante au niveau 1-3).
 - Utilise noter_journal pour retenir les PNJ, indices et quêtes importants.
+- Tu as le SRD 5.1 complet sous la main avec consulter_regles (texte en anglais, que tu traduis pour le \
+joueur). Consulte-le dès que tu as un doute sur une règle, une condition, un sort, une capacité, un objet \
+magique ou les statistiques d'un monstre, au lieu d'improviser. Inutile pour ce qui est déjà sur la fiche.
+- Pour un combat, tu peux utiliser comme « modele » n'importe quel monstre du SRD par son nom anglais \
+(ex. « Owlbear », « Bandit Captain ») : ses statistiques sont chargées automatiquement. S'il a une \
+Multiattack, appelle attaque_ennemi pour chacune de ses attaques.
 
 BESTIAIRE DISPONIBLE (modèles pour commencer_combat) : `;
 
@@ -287,6 +301,7 @@ function messageAssistant(msg) {
  * Un texteJoueur vide sert au tout premier tour (introduction de l'aventure).
  */
 export async function jouerTour(partie, texteJoueur, appeler, actionDirecte = null) {
+  await chargerRegles(); // SRD local : sans lui (hors connexion), le jeu continue normalement
   const sc = SCENARIOS[partie.scenario] ?? SCENARIOS.libre;
   let messageJoueur = texteJoueur || `[Début de la partie] ${sc.intro}`;
   const moteur = new Moteur(partie);
@@ -321,7 +336,11 @@ export async function jouerTour(partie, texteJoueur, appeler, actionDirecte = nu
         args = null;
       }
       if (!args || typeof args !== "object" || Array.isArray(args)) resultat = { erreur: "Arguments JSON invalides." };
-      else resultat = moteur.executer(tc.function.name, args);
+      else if (tc.function.name === "consulter_regles") {
+        resultat = rechercher(args.recherche, args.categorie);
+        const titres = resultat.resultats?.map((r) => r.titre).join(", ");
+        moteur.evt(`📖 Règles consultées : « ${args.recherche} »${titres ? ` → ${titres}` : ""}`, "regle");
+      } else resultat = moteur.executer(tc.function.name, args);
       messages.push({ role: "tool", tool_call_id: tc.id, content: JSON.stringify(resultat) });
     }
   }

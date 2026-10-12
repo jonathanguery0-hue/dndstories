@@ -177,6 +177,10 @@ body.mode-jeu #ecran-jeu { flex: 1; min-height: 0; width: 100%; display: flex; f
 }
 .histoire .de::before { content: "🎲 "; }
 .histoire .systeme { background: rgba(127, 166, 90, .15); color: #3d5a24; }
+.histoire .regle {
+  font-size: .78rem; margin: .3rem 0; padding: .25rem .6rem; border-radius: 5px; font-style: italic;
+  background: rgba(111, 156, 196, .14); color: #2f4f6b;
+}
 
 .reflexion { margin-top: .6rem; color: var(--discret); font-style: italic; }
 .de-anime { display: inline-block; animation: rouler 1s infinite linear; }

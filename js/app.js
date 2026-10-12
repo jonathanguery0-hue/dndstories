@@ -5,6 +5,7 @@ import { creerPersonnage, vueFiche } from "./personnage.js";
 import { nouvellePartie } from "./moteur.js";
 import { clientOpenAI, clientServeur, condenserMemoire, jouerTour, listerModeles, verifierCode } from "./mj.js";
 import { SERVEUR_URL } from "./serveur.js";
+import { chargerRegles } from "./regles.js";
 import * as stockage from "./stockage.js";
 
 // ------------------------------------------------------------------ utilitaires
@@ -501,6 +502,7 @@ function ouvrirPartie(id) {
     return;
   }
   PARTIE = partie;
+  chargerRegles(); // préchargement du SRD pendant que le joueur lit
   history.replaceState(null, "", `${location.pathname}#${id}`);
   afficherEcran("jeu");
   $("#titre-aventure").textContent = REGLES.scenarios[PARTIE.scenario]?.titre ?? "";
@@ -514,7 +516,8 @@ function ouvrirPartie(id) {
 function rendreEntree(entree) {
   if (entree.type === "mj") return `<div class="mj">${markdown(entree.texte)}</div>`;
   if (entree.type === "joueur") return `<div class="joueur">${echapper(entree.texte)}</div>`;
-  return `<div class="${entree.type === "systeme" ? "systeme" : "de"}">${echapper(entree.texte)}</div>`;
+  const classe = { systeme: "systeme", regle: "regle" }[entree.type] ?? "de";
+  return `<div class="${classe}">${echapper(entree.texte)}</div>`;
 }
 
 function rendreHistoire({ debutDernierTour = false } = {}) {

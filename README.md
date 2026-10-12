@@ -17,6 +17,7 @@ Rien à installer : ça marche sur ordinateur, tablette et téléphone.
 - 🎲 **De vrais dés** : c'est le jeu qui lance les dés et applique les règles. L'IA ne peut ni tricher ni « oublier » tes PV.
 - ⚔️ **Combats** : initiative, attaques, sorts, ennemis avec barres de vie, jets contre la mort.
 - 🗺️ **Trois aventures** : *Les Ombres de Brumesaule* (enquête et nécromancie), *La Caravane de l'Aube* (voyage et complot), ou une **aventure libre** improvisée.
+- 📖 **Le SRD 5.1 complet embarqué** : le MJ consulte les vraies règles, les 319 sorts, les 334 monstres et les objets magiques au lieu d'improviser, et peut faire combattre n'importe quel monstre du SRD.
 - 💾 **Sauvegarde automatique** dans ton navigateur, avec export/import pour changer d'appareil.
 
 ---
@@ -91,6 +92,7 @@ sauvegarde** sur l'autre appareil. Vider les données du navigateur efface les p
   - `mj.js` : les consignes du maître du jeu et la boucle de dialogue avec l'IA
   - `personnage.js`, `srd.js`, `des.js` : la fiche, les données de règles et les dés
   - `scenarios.js` : les aventures (ajoute la tienne !)
+  - `regles.js` : recherche dans le SRD complet (`regles/srd-5.1.json`, regénéré par `node outils/construire-srd.mjs`)
   - `stockage.js` : sauvegardes et réglages dans le navigateur
   - `serveur.js` : adresse du serveur relais ; le relais lui-même est dans `serveur/worker.js`
   - `app.js` : l'interface ; `sw.js` + `manifest.webmanifest` : installation comme application
