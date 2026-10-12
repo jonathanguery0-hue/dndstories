@@ -89,6 +89,7 @@ export function listerParties() {
     parties.push({
       id: p.id, maj_le: p.maj_le, scenario: p.scenario,
       nom: perso.nom, race: perso.race, classe: perso.classe, niveau: perso.niveau,
+      consommation: p.consommation ?? null,
     });
   }
   return parties.sort((a, b) => b.maj_le - a.maj_le);

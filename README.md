@@ -70,6 +70,23 @@ sauvegarde** sur l'autre appareil. Vider les données du navigateur efface les p
 
 ---
 
+## 💸 Combien ça coûte ?
+
+Le jeu est réglé pour que le coût reste faible et **ne grimpe pas** avec la longueur de la partie :
+
+- **Mémoire limitée** : l'IA garde les 12 derniers échanges mot pour mot ; les plus anciens sont
+  résumés (avec le journal des faits importants). Chaque tour coûte donc à peu près pareil, même
+  après des heures de jeu.
+- **Mise en cache** : les consignes du MJ et l'historique sont envoyés dans le même ordre à chaque
+  tour ; OpenAI les reconnaît et les facture jusqu'à 90 % moins cher.
+- **Réflexion limitée** : les modèles qui « réfléchissent » (gpt-5…) sont réglés au minimum utile,
+  car cette réflexion cachée est facturée ; la longueur des réponses est plafonnée.
+- **Suivi** : le coût estimé de chaque partie s'affiche sur l'accueil et dans l'onglet **Journal**.
+
+Ordre de grandeur avec `gpt-5-mini` : **environ 0,1 à 0,5 centime par tour** de jeu, plus environ
+1 centime par réponse écoutée avec la voix IA. Pour être tranquille, fixe une **limite de dépense
+mensuelle** sur platform.openai.com → *Limits*.
+
 ## ❓ Problèmes fréquents
 
 | Message | Solution |

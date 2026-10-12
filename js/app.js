@@ -42,6 +42,15 @@ function markdown(texte) {
 
 const grandEcran = () => window.matchMedia("(min-width: 901px)").matches;
 
+/** Coût estimé d'une partie, en texte (« ≈ 0,04 $ »), ou "" si rien n'a encore été consommé. */
+function texteCout(c) {
+  if (!c?.appels) return "";
+  if (!c.cout && c.cout_inconnu) return `${Math.round((c.entree + c.sortie) / 1000)} k jetons`;
+  const montant = c.cout < 0.01 ? "moins de 0,01"
+    : `≈ ${c.cout.toLocaleString("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  return `${montant} $${c.cout_inconnu ? " (partiel)" : ""}`;
+}
+
 function afficherEcran(nom) {
   $$(".ecran").forEach((e) => e.classList.add("cache"));
   $(`#ecran-${nom}`).classList.remove("cache");
@@ -110,7 +119,7 @@ function chargerAccueil() {
       <div class="infos">
         <strong>${echapper(p.nom)}</strong> — ${echapper(p.race)} ${echapper(p.classe)} niv. ${p.niveau}<br>
         <small class="discret">${echapper(REGLES.scenarios[p.scenario]?.titre ?? p.scenario)} ·
-          ${new Date(p.maj_le * 1000).toLocaleString("fr-FR")}</small>
+          ${new Date(p.maj_le * 1000).toLocaleString("fr-FR")}${texteCout(p.consommation) ? ` · IA ${texteCout(p.consommation)}` : ""}</small>
       </div>
       <div class="actions">
         <button class="bouton principal" data-jouer="${p.id}">Continuer</button>
@@ -653,9 +662,13 @@ function rendrePanneau() {
     $("#onglet-sorts").innerHTML = '<p class="discret">Ce personnage ne lance pas de sorts.</p>';
   }
 
-  $("#onglet-journal").innerHTML = PARTIE.journal.length
+  const c = PARTIE.consommation;
+  const consommation = c?.appels ? `<h3>Coût de l'IA</h3><p class="aide">${texteCout(c)} pour cette partie
+    (${c.appels} appels, ${Math.round(c.entree / 1000)} k jetons lus dont ${Math.round((c.cache / Math.max(c.entree, 1)) * 100)} %
+    en cache, ${Math.round(c.sortie / 1000)} k écrits). Estimation hors voix IA.</p>` : "";
+  $("#onglet-journal").innerHTML = (PARTIE.journal.length
     ? `<ul class="liste-simple">${PARTIE.journal.map((n) => `<li class="bloc">${echapper(n)}</li>`).join("")}</ul>`
-    : '<p class="discret">Le maître du jeu notera ici les personnages, indices et quêtes importants.</p>';
+    : '<p class="discret">Le maître du jeu notera ici les personnages, indices et quêtes importants.</p>') + consommation;
 
   rendreStatutMobile(p);
 

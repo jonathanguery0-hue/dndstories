@@ -101,7 +101,8 @@ export default {
     if (!Array.isArray(corps?.messages) || !corps.messages.length) return erreur(400, "Requête invalide.");
 
     // On ne transmet que ce qui est nécessaire : le modèle est imposé par le serveur pour maîtriser les coûts.
-    const envoi = { model: env.MODELE || MODELE_DEFAUT, messages: corps.messages };
+    const modele = env.MODELE || MODELE_DEFAUT;
+    const envoi = { model: modele, messages: corps.messages, ...parametresEconomie(modele) };
     if (Array.isArray(corps.tools) && corps.tools.length) envoi.tools = corps.tools;
 
     let reponse;
@@ -124,6 +125,12 @@ export default {
     });
   },
 };
+
+// Limite le coût de chaque appel : peu de « réflexion » cachée (facturée) et une réponse plafonnée.
+function parametresEconomie(modele) {
+  if (/^(gpt-5|o\d)/.test(modele)) return { reasoning_effort: "low", max_completion_tokens: 6000 };
+  return { max_completion_tokens: 1500 };
+}
 
 function listeOrigines(texte) {
   return String(texte ?? "").split(",").map((o) => o.trim().replace(/\/+$/, "")).filter(Boolean);

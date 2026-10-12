@@ -6,9 +6,46 @@ import { CATEGORIES, chargerRegles, rechercher } from "./regles.js";
 import { resumeTexte } from "./personnage.js";
 import { SCENARIOS } from "./scenarios.js";
 
-const MAX_ETAPES = 14;       // appels d'outils maximum par tour de jeu
-const HISTORIQUE_MAX = 40;   // messages gardés tels quels avant de résumer les plus anciens
-const A_RESUMER = 20;        // nombre de messages condensés à chaque résumé
+const MAX_ETAPES = 10;       // appels d'outils maximum par tour de jeu
+const HISTORIQUE_MAX = 24;   // messages gardés tels quels (12 échanges) avant de résumer les plus anciens
+const A_RESUMER = 12;        // nombre de messages condensés à chaque résumé
+
+// Prix indicatifs en dollars par million de jetons : [entrée, entrée en cache, sortie].
+// Ce ne sont que des estimations pour afficher un ordre de grandeur (vérifier sur openai.com/api/pricing).
+export const PRIX_MODELES = {
+  "gpt-5-nano": [0.05, 0.005, 0.4],
+  "gpt-5-mini": [0.25, 0.025, 2],
+  "gpt-5": [1.25, 0.125, 10],
+  "gpt-4.1-nano": [0.1, 0.025, 0.4],
+  "gpt-4.1-mini": [0.4, 0.1, 1.6],
+  "gpt-4o-mini": [0.15, 0.075, 0.6],
+};
+
+/**
+ * Réglages qui limitent le coût de chaque appel : peu de « réflexion » cachée pour les modèles qui
+ * raisonnent (elle est facturée comme du texte écrit) et une longueur de réponse plafonnée.
+ */
+export function parametresEconomie(modele) {
+  if (/^(gpt-5|o\d)/.test(String(modele ?? ""))) return { reasoning_effort: "low", max_completion_tokens: 6000 };
+  return { max_completion_tokens: 1500 };
+}
+
+/** Ajoute la consommation d'un appel au compteur de la partie. */
+export function compterConsommation(partie, usage, modele) {
+  if (!usage) return;
+  const c = partie.consommation ??= { appels: 0, entree: 0, cache: 0, sortie: 0, cout: 0 };
+  const cache = usage.prompt_tokens_details?.cached_tokens ?? 0;
+  const entree = usage.prompt_tokens ?? 0;
+  const sortie = usage.completion_tokens ?? 0;
+  c.appels += 1;
+  c.entree += entree;
+  c.cache += cache;
+  c.sortie += sortie;
+  const prix = Object.entries(PRIX_MODELES).sort((a, b) => b[0].length - a[0].length)
+    .find(([nom]) => String(modele ?? "").startsWith(nom))?.[1];
+  if (prix) c.cout += ((entree - cache) * prix[0] + cache * prix[1] + sortie * prix[2]) / 1e6;
+  else c.cout_inconnu = true;
+}
 
 function outil(name, description, properties, required) {
   return { type: "function", function: { name, description, parameters: { type: "object", properties, required } } };
@@ -155,13 +192,21 @@ Multiattack, appelle attaque_ennemi pour chacune de ses attaques.
 
 BESTIAIRE DISPONIBLE (modèles pour commencer_combat) : `;
 
-export function construireSysteme(partie) {
+/**
+ * Partie fixe des consignes (identique à chaque tour) : placée en tête, OpenAI la met en cache
+ * et la facture beaucoup moins cher (jusqu'à -90 %) à partir du deuxième tour.
+ */
+export function consignesFixes(partie) {
   const sc = SCENARIOS[partie.scenario] ?? SCENARIOS.libre;
-  const morceaux = [
+  return [
     CONSIGNES + Object.entries(srd.MONSTRES).map(([n, m]) => `${n} (CA ${m.ca}, ${m.xp} XP)`).join(", "),
     `AVENTURE : ${sc.titre}\nNOTES SECRÈTES DU MJ :\n${sc.notes_mj}`,
-    "FICHE DU PERSONNAGE (état actuel, fait foi) :\n" + resumeTexte(partie.personnage),
-  ];
+  ].join("\n\n");
+}
+
+/** Partie qui change à chaque tour (fiche, combat, journal, résumé) : placée juste avant l'action du joueur. */
+export function etatActuel(partie) {
+  const morceaux = ["FICHE DU PERSONNAGE (état actuel, fait foi) :\n" + resumeTexte(partie.personnage)];
   const combat = partie.combat;
   if (combat) {
     const lignes = combat.ennemis.map((e) => `- ${e.id} : ${e.pv}/${e.pv_max} PV, CA ${e.ca}, ${e.etat}`);
@@ -170,6 +215,10 @@ export function construireSysteme(partie) {
   if (partie.journal.length) morceaux.push("JOURNAL (faits établis) :\n" + partie.journal.map((n) => `- ${n}`).join("\n"));
   if (partie.resume) morceaux.push("RÉSUMÉ DE L'HISTOIRE JUSQU'ICI :\n" + partie.resume);
   return morceaux.join("\n\n");
+}
+
+export function construireSysteme(partie) {
+  return `${consignesFixes(partie)}\n\n${etatActuel(partie)}`;
 }
 
 /** Problème de communication avec le service d'IA, avec un message compréhensible. */
@@ -191,7 +240,7 @@ async function requeteIA(url, entetes, corps, traduireErreur) {
   if (!reponse.ok) throw new ErreurIA(traduireErreur(reponse.status, donnees));
   const msg = donnees?.choices?.[0]?.message;
   if (!msg) throw new ErreurIA("Réponse inattendue du service d'IA.");
-  return msg;
+  return { ...msg, usage: donnees.usage, modele: donnees.model };
 }
 
 /**
@@ -203,7 +252,7 @@ export function clientOpenAI({ cle, modele, adresse }) {
   return (messages, outils) => requeteIA(
     `${base}/chat/completions`,
     cle ? { Authorization: `Bearer ${cle}` } : {},
-    { model: modele, messages, ...(outils ? { tools: outils } : {}) },
+    { model: modele, messages, ...(outils ? { tools: outils } : {}), ...parametresEconomie(modele) },
     (statut, donnees) => messageErreur(statut, donnees, modele),
   );
 }
@@ -313,14 +362,16 @@ export async function jouerTour(partie, texteJoueur, appeler, actionDirecte = nu
       + "Ne rappelle pas cet outil pour cette action ; raconte-la puis poursuis la scène.]";
   }
   const messages = [
-    { role: "system", content: construireSysteme(partie) },
+    { role: "system", content: consignesFixes(partie) },
     ...partie.messages,
+    { role: "system", content: etatActuel(partie) },
     { role: "user", content: messageJoueur },
   ];
   const narration = [];
   let termine = false;
   for (let etape = 0; etape < MAX_ETAPES; etape++) {
     const msg = await appeler(messages, OUTILS);
+    compterConsommation(partie, msg.usage, msg.modele);
     if (msg.content && msg.content.trim()) narration.push(msg.content.trim());
     if (!msg.tool_calls?.length) {
       termine = true;
@@ -364,6 +415,7 @@ export async function condenserMemoire(partie, appeler) {
     + "conséquences. Écris en français, 300 mots maximum, au passé.";
   const contenu = `RÉSUMÉ ACTUEL :\n${partie.resume || "(aucun)"}\n\nNOUVEAUX ÉCHANGES :\n${transcription}`;
   const msg = await appeler([{ role: "system", content: consigne }, { role: "user", content: contenu }]);
+  compterConsommation(partie, msg.usage, msg.modele);
   const resume = (msg.content ?? "").trim();
   if (!resume) return false;
   partie.resume = resume;

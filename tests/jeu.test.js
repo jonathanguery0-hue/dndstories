@@ -199,7 +199,7 @@ test("un tour avec des outils", async () => {
   assert.deepEqual(partie.journal, ["Margot tient l'auberge"]);
   assert.deepEqual(partie.messages.map((m) => m.role), ["user", "assistant"]);
   assert.deepEqual(partie.affichage.map((a) => a.type), ["joueur", "de", "systeme", "mj"]);
-  const systeme = requetes[0].messages[0].content;
+  const systeme = requetes[0].messages.filter((m) => m.role === "system").map((m) => m.content).join("\n");
   assert.match(systeme, /Brann/);
   assert.match(systeme, /Brumesaule/);
   assert.equal(requetes[1].messages.at(-1).role, "tool");
@@ -253,7 +253,7 @@ test("la mémoire est condensée", async () => {
   const { appeler } = fauxClient([{ content: "Résumé de l'histoire." }]);
   assert.ok(await mj.condenserMemoire(partie, appeler));
   assert.equal(partie.resume, "Résumé de l'histoire.");
-  assert.equal(partie.messages.length, 22);
+  assert.equal(partie.messages.length, 30);
 });
 
 // ------------------------------------------------------------------ stockage navigateur
@@ -357,4 +357,22 @@ test("une capacité cliquée est appliquée par le moteur avant l'IA", async () 
   partie.personnage.capacites.find((c) => c.nom === "Rage").utilisations = 0;
   await assert.rejects(mj.jouerTour(partie, "Rage !", appeler, { outil: "utiliser_capacite", args: { nom: "Rage" } }), /plus d'utilisation/);
   assert.equal(requetes.length, 1);
+});
+
+test("coût maîtrisé : consignes fixes en tête, état à la fin, consommation comptée", async () => {
+  const partie = nouvellePartie(guerrier(), "brumesaule");
+  partie.messages = [{ role: "user", content: "Bonjour" }, { role: "assistant", content: "Salut" }];
+  const usage = { prompt_tokens: 10000, completion_tokens: 500, prompt_tokens_details: { cached_tokens: 8000 } };
+  const { appeler, requetes } = fauxClient([{ content: "D'accord.", usage, modele: "gpt-5-mini-2025-08-07" }]);
+  await mj.jouerTour(partie, "J'écoute.", appeler);
+  const msgs = requetes[0].messages;
+  assert.equal(msgs[0].content, mj.consignesFixes(partie)); // identique d'un tour à l'autre → mis en cache
+  assert.doesNotMatch(msgs[0].content, /Brann/);
+  assert.match(msgs.at(-2).content, /FICHE DU PERSONNAGE/);
+  assert.equal(msgs.at(-1).content, "J'écoute.");
+  assert.deepEqual({ ...partie.consommation, cout: undefined }, { appels: 1, entree: 10000, cache: 8000, sortie: 500, cout: undefined });
+  // 2 000 × 0,25 + 8 000 × 0,025 + 500 × 2 (dollars par million de jetons)
+  assert.ok(Math.abs(partie.consommation.cout - 0.0017) < 1e-9);
+  assert.deepEqual(mj.parametresEconomie("gpt-5-mini"), { reasoning_effort: "low", max_completion_tokens: 6000 });
+  assert.deepEqual(mj.parametresEconomie("gpt-4o-mini"), { max_completion_tokens: 1500 });
 });
