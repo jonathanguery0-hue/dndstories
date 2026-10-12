@@ -70,6 +70,7 @@
     <section class="recit">
       <div class="entete-jeu">
         <h2 id="titre-aventure" class="titre-aventure"></h2>
+        <button class="bouton bouton-voix cache" id="bouton-voix" aria-pressed="false" title="Lecture vocale automatique des réponses">🔇 Voix</button>
         <button class="bouton bascule-panneau" id="bascule-panneau" aria-controls="panneau">📋 Fiche</button>
       </div>
       <div id="statut-mobile" class="statut-mobile"></div>
@@ -151,6 +152,20 @@
         </label>
         <p class="aide">Laisse vide pour utiliser OpenAI.</p>
       </details>
+    </div>
+    <div id="section-voix" class="cache">
+      <h3>🔊 Voix du maître du jeu</h3>
+      <label>Voix
+        <span class="ligne">
+          <select id="choix-voix"></select>
+          <button type="button" class="bouton" id="tester-voix">Écouter</button>
+        </span>
+      </label>
+      <label>Vitesse : <span id="valeur-vitesse">1</span>×
+        <input type="range" id="vitesse-voix" min="0.7" max="1.5" step="0.05">
+      </label>
+      <p class="aide">Les voix viennent de ton appareil : leur qualité varie (les voix « naturelles » de Edge,
+        Chrome, Android ou iPhone sont les meilleures).</p>
     </div>
     <p class="erreur" id="erreur-reglages"></p>
     <div class="ligne fin">

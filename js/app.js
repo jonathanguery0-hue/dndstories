@@ -7,6 +7,7 @@ import { clientOpenAI, clientServeur, condenserMemoire, jouerTour, listerModeles
 import { SERVEUR_URL } from "./serveur.js";
 import { chargerRegles } from "./regles.js";
 import * as stockage from "./stockage.js";
+import * as voix from "./voix.js";
 
 // ------------------------------------------------------------------ utilitaires
 
@@ -44,6 +45,7 @@ function afficherEcran(nom) {
   $$(".ecran").forEach((e) => e.classList.add("cache"));
   $(`#ecran-${nom}`).classList.remove("cache");
   document.body.classList.toggle("mode-jeu", nom === "jeu");
+  if (nom !== "jeu") voix.arreter();
   fermerPanneau();
   window.scrollTo(0, 0);
 }
@@ -172,7 +174,22 @@ function afficherMode() {
   $("#section-cle").classList.toggle("cache", mode !== "cle");
 }
 
+function remplirVoix() {
+  const prefs = voix.chargerPreferences();
+  const liste = voix.voixFrancaises();
+  $("#choix-voix").innerHTML = liste.length
+    ? liste.map((v) => `<option value="${echapper(v.name)}" ${v.name === prefs.voix ? "selected" : ""}>${echapper(v.name)}</option>`).join("")
+    : '<option value="">Voix française par défaut</option>';
+}
+
 function ouvrirReglages() {
+  $("#section-voix").classList.toggle("cache", !voix.voixDisponible());
+  if (voix.voixDisponible()) {
+    remplirVoix();
+    const vitesse = voix.chargerPreferences().vitesse;
+    $("#vitesse-voix").value = vitesse;
+    $("#valeur-vitesse").textContent = vitesse;
+  }
   $("#choix-mode").classList.toggle("cache", !SERVEUR_URL);
   $$('input[name="mode"]').forEach((r) => { r.checked = r.value === CONFIG.mode; });
   $("#code-acces").value = CONFIG.code;
@@ -224,6 +241,9 @@ $("#enregistrer-reglages").addEventListener("click", (e) => {
   e.preventDefault();
   try {
     CONFIG = stockage.enregistrerConfig(valeursReglages());
+    if (voix.voixDisponible()) {
+      voix.enregistrerPreferences({ voix: $("#choix-voix").value, vitesse: Number($("#vitesse-voix").value) });
+    }
     $("#reglages").close();
     $("#alerte-config").classList.toggle("cachee", stockage.estConfigure(CONFIG));
     $("#alerte-quoi").textContent = CONFIG.mode === "serveur" ? "code d'accès" : "clé API OpenAI";
@@ -513,8 +533,12 @@ function ouvrirPartie(id) {
   else if (grandEcran()) $("#action").focus();
 }
 
-function rendreEntree(entree) {
-  if (entree.type === "mj") return `<div class="mj">${markdown(entree.texte)}</div>`;
+function rendreEntree(entree, index = -1) {
+  if (entree.type === "mj") {
+    const bouton = voix.voixDisponible() && index >= 0
+      ? `<button class="lire${voix.lectureEnCours() === index ? " lecture" : ""}" data-lire="${index}" title="Écouter" aria-label="Écouter">🔊</button>` : "";
+    return `<div class="mj">${bouton}${markdown(entree.texte)}</div>`;
+  }
   if (entree.type === "joueur") return `<div class="joueur">${echapper(entree.texte)}</div>`;
   const classe = { systeme: "systeme", regle: "regle" }[entree.type] ?? "de";
   return `<div class="${classe}">${echapper(entree.texte)}</div>`;
@@ -662,6 +686,8 @@ $("#onglet-fiche").addEventListener("click", (e) => {
 async function envoyer(texte, actionDirecte = null) {
   if (enAttente) return;
   enAttente = true;
+  voix.arreter();
+  if (voix.chargerPreferences().auto) voix.deverrouiller(); // iPhone : autorise la lecture de la réponse
   $("#envoyer").disabled = true;
   $("#erreur-jeu").textContent = "";
   $("#reflexion").classList.remove("cachee");
@@ -684,6 +710,7 @@ async function envoyer(texte, actionDirecte = null) {
     PARTIE = copie;
     if (!actionDirecte) $("#action").value = "";
     rendreHistoire({ debutDernierTour: true });
+    if (voix.chargerPreferences().auto) lireEntree(PARTIE.affichage.length - 1);
   } catch (err) {
     const garde = texte && !actionDirecte ? " Ton action est restée dans la zone de texte." : "";
     $("#erreur-jeu").textContent = err.message + garde;
@@ -751,3 +778,58 @@ $("#installer").addEventListener("click", async () => {
 });
 const dejaInstalle = window.matchMedia("(display-mode: standalone)").matches || navigator.standalone;
 if (/iPhone|iPad|iPod/.test(navigator.userAgent) && !dejaInstalle) $("#aide-ios").classList.remove("cache");
+
+// ------------------------------------------------------------------ lecteur vocal
+
+function lireEntree(index) {
+  const entree = PARTIE?.affichage[index];
+  if (entree?.type === "mj") voix.lire(entree.texte, index);
+}
+
+function majBoutonVoix() {
+  const auto = voix.chargerPreferences().auto;
+  $("#bouton-voix").setAttribute("aria-pressed", String(auto));
+  $("#bouton-voix").textContent = auto ? "🔊 Voix" : "🔇 Voix";
+}
+
+if (voix.voixDisponible()) {
+  $("#bouton-voix").classList.remove("cache");
+  majBoutonVoix();
+  speechSynthesis.addEventListener?.("voiceschanged", () => { if ($("#reglages").open) remplirVoix(); });
+}
+
+$("#bouton-voix").addEventListener("click", () => {
+  const auto = !voix.chargerPreferences().auto;
+  voix.enregistrerPreferences({ auto });
+  majBoutonVoix();
+  if (auto) {
+    // Lit tout de suite la dernière réponse du maître du jeu.
+    const derniere = PARTIE?.affichage.map((e) => e.type).lastIndexOf("mj") ?? -1;
+    if (derniere >= 0) lireEntree(derniere);
+  } else {
+    voix.arreter();
+  }
+});
+
+$("#histoire").addEventListener("click", (e) => {
+  const b = e.target.closest("[data-lire]");
+  if (!b) return;
+  const index = Number(b.dataset.lire);
+  if (voix.lectureEnCours() === index) voix.arreter();
+  else lireEntree(index);
+});
+
+voix.quandLectureChange((id) => {
+  $$("#histoire [data-lire]").forEach((b) => {
+    const actif = Number(b.dataset.lire) === id;
+    b.classList.toggle("lecture", actif);
+    b.textContent = actif ? "⏹" : "🔊";
+    b.title = actif ? "Arrêter" : "Écouter";
+  });
+});
+
+$("#vitesse-voix").addEventListener("input", (e) => { $("#valeur-vitesse").textContent = e.target.value; });
+$("#tester-voix").addEventListener("click", () => {
+  voix.enregistrerPreferences({ voix: $("#choix-voix").value, vitesse: Number($("#vitesse-voix").value) });
+  voix.lire("La brume monte du lac Morne. Au loin, une cloche sonne trois coups… Que fais-tu ?", "test");
+});

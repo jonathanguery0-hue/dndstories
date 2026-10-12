@@ -164,7 +164,16 @@ body.mode-jeu #ecran-jeu { flex: 1; min-height: 0; width: 100%; display: flex; f
 .pied-recit { flex-shrink: 0; }
 .statut-mobile { display: none; }
 .histoire .mj p { margin: 0 0 .8rem; }
-.histoire .mj { margin-bottom: 1rem; font-size: 1.1rem; }
+.histoire .mj { margin-bottom: 1rem; font-size: 1.1rem; position: relative; padding-right: 2rem; }
+.histoire .lire {
+  position: absolute; top: 0; right: 0; background: none; border: 1px solid rgba(43, 33, 24, .2);
+  border-radius: 99px; width: 1.8rem; height: 1.8rem; cursor: pointer; font-size: .85rem; opacity: .55;
+}
+.histoire .lire:hover, .histoire .lire.lecture { opacity: 1; border-color: #8a6422; }
+.histoire .lire.lecture { background: rgba(138, 100, 34, .15); }
+.bouton-voix { flex-shrink: 0; padding: .35rem .8rem; }
+.bouton-voix[aria-pressed="true"] { border-color: var(--or); color: var(--or); }
+input[type=range] { width: 100%; accent-color: var(--or); }
 .histoire .joueur {
   margin: 1rem 0; padding: .5rem .8rem; border-left: 3px solid #8a6422; font-style: italic;
   background: rgba(138, 100, 34, .1); border-radius: 0 6px 6px 0;
