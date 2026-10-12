@@ -4,7 +4,7 @@ import { beforeEach, test } from "node:test";
 import * as des from "../js/des.js";
 import * as mj from "../js/mj.js";
 import { Moteur, nouvellePartie } from "../js/moteur.js";
-import { ca, creerPersonnage, gagnerNiveau, vueFiche } from "../js/personnage.js";
+import { ca, creerPersonnage, gagnerNiveau, mod, vueFiche } from "../js/personnage.js";
 import * as stockage from "../js/stockage.js";
 
 const CARACS = { FOR: 15, DEX: 14, CON: 13, INT: 8, SAG: 12, CHA: 10 };
@@ -376,3 +376,67 @@ test("coût maîtrisé : consignes fixes en tête, état à la fin, consommation
   assert.deepEqual(mj.parametresEconomie("gpt-5-mini"), { reasoning_effort: "low", max_completion_tokens: 6000 });
   assert.deepEqual(mj.parametresEconomie("gpt-4o-mini"), { max_completion_tokens: 1500 });
 });
+
+// ------------------------------------------------------------------ dés lancés par le joueur
+
+test("le joueur lance lui-même ses d20", async () => {
+  const partie = nouvellePartie(guerrier(), "libre");
+  const m = new Moteur(partie);
+  const demandes = [];
+  const lancer = (valeurs) => async (jet) => { demandes.push(jet); return valeurs.splice(0, jet.nombre); };
+
+  const test1 = await m.executerAvecJets("jet_de_test", { type: "competence", nom: "Perception", dd: 15, raison: "écouter à la porte" }, lancer([12]));
+  assert.deepEqual(test1.des, [12]);
+  assert.equal(test1.total, 12 + 3);
+  assert.equal(demandes[0].libelle, "Perception — écouter à la porte");
+  assert.equal(demandes[0].seuil, 15);
+  assert.equal(demandes[0].bonus, 3);
+
+  // Avantage : deux dés lancés ensemble, on garde le meilleur.
+  const test2 = await m.executerAvecJets("jet_de_test", { type: "caracteristique", nom: "FOR", avantage: true }, lancer([4, 17]));
+  assert.equal(demandes[1].nombre, 2);
+  assert.equal(test2.total, 17 + mod(partie.personnage.caracs.FOR));
+
+  // Initiative puis attaque : le 20 lancé par le joueur donne un coup critique.
+  await m.executerAvecJets("commencer_combat", { ennemis: [{ nom: "Gobelin" }] }, lancer([10]));
+  assert.match(demandes[2].libelle, /Initiative/);
+  const attaque = await m.executerAvecJets("attaque_joueur", { arme: "Épée longue", cible: "Gobelin" }, lancer([20]));
+  assert.ok(attaque.critique && attaque.touche);
+  assert.equal(demandes[3].nomSeuil, "CA");
+  // Un seul événement par action, malgré la pause pour lancer le dé.
+  assert.equal(m.evenements.filter((e) => e.texte.startsWith("Attaque")).length, 1);
+});
+
+test("pause pour le dé : l'action n'est pas appliquée deux fois", async () => {
+  const caracs = { FOR: 8, DEX: 14, CON: 13, INT: 15, SAG: 12, CHA: 10 };
+  const p = creerPersonnage({ nom: "Ilsa", race: "Halfelin pied-léger", classe: "Magicien", caracs, competences: ["Arcanes", "Histoire"] });
+  p.xp = 900; gagnerNiveau(p); // niveau 3 : Rayon ardent (3 rayons = 3 jets)
+  const partie = nouvellePartie(p, "libre");
+  const m = new Moteur(partie);
+  m.commencer_combat({ ennemis: [{ nom: "Ogre" }] });
+  const jets = [];
+  const valeurs = [1, 15, 2, 19]; // le 1 est relancé grâce à « Chanceux » (halfelin)
+  const res = await m.executerAvecJets("lancer_sort", { sort: "Rayon ardent", cibles: ["Ogre"] },
+    async (jet) => { jets.push(jet); return valeurs.splice(0, jet.nombre); });
+  assert.equal(jets.length, 4);
+  assert.ok(jets[1].chanceux);
+  assert.equal(res.resultats.length, 3);
+  assert.equal(partie.personnage.emplacements["2"].restants, 1); // un seul emplacement dépensé
+  assert.equal(m.evenements.filter((e) => e.texte.includes("Rayon ardent")).length, 1);
+});
+
+test("un tour de jeu attend les jets du joueur", async () => {
+  const partie = nouvellePartie(guerrier(), "libre");
+  const { appeler, requetes } = fauxClient([
+    { content: null, tool_calls: [_appelTest("jet_de_test", { type: "competence", nom: "Athlétisme", dd: 12 })] },
+    { content: "Tu escalades le mur." },
+  ]);
+  const jets = [];
+  await mj.jouerTour(partie, "J'escalade.", appeler, null, { demanderJet: async (j) => { jets.push(j); return [18]; } });
+  assert.equal(jets.length, 1);
+  assert.equal(JSON.parse(requetes[1].messages.at(-1).content).des[0], 18);
+});
+
+function _appelTest(name, args) {
+  return { id: "t", function: { name, arguments: JSON.stringify(args) } };
+}

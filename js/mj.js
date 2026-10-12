@@ -349,14 +349,14 @@ function messageAssistant(msg) {
  * Modifie `partie` directement : l'appelant travaille sur une copie et ne la garde qu'en cas de succès.
  * Un texteJoueur vide sert au tout premier tour (introduction de l'aventure).
  */
-export async function jouerTour(partie, texteJoueur, appeler, actionDirecte = null) {
+export async function jouerTour(partie, texteJoueur, appeler, actionDirecte = null, { demanderJet = null } = {}) {
   await chargerRegles(); // SRD local : sans lui (hors connexion), le jeu continue normalement
   const sc = SCENARIOS[partie.scenario] ?? SCENARIOS.libre;
   let messageJoueur = texteJoueur || `[Début de la partie] ${sc.intro}`;
   const moteur = new Moteur(partie);
   if (actionDirecte) {
     // Action cliquée dans la fiche : le moteur l'applique tout de suite, l'IA n'a plus qu'à la raconter.
-    const resultat = moteur.executer(actionDirecte.outil, actionDirecte.args);
+    const resultat = await moteur.executerAvecJets(actionDirecte.outil, actionDirecte.args, demanderJet);
     if (resultat.erreur) throw new ErreurAction(resultat.erreur);
     messageJoueur += `\n[Le moteur a déjà appliqué ${actionDirecte.outil} : ${JSON.stringify(resultat)}. `
       + "Ne rappelle pas cet outil pour cette action ; raconte-la puis poursuis la scène.]";
@@ -391,7 +391,7 @@ export async function jouerTour(partie, texteJoueur, appeler, actionDirecte = nu
         resultat = rechercher(args.recherche, args.categorie);
         const titres = resultat.resultats?.map((r) => r.titre).join(", ");
         moteur.evt(`📖 Règles consultées : « ${args.recherche} »${titres ? ` → ${titres}` : ""}`, "regle");
-      } else resultat = moteur.executer(tc.function.name, args);
+      } else resultat = await moteur.executerAvecJets(tc.function.name, args, demanderJet);
       messages.push({ role: "tool", tool_call_id: tc.id, content: JSON.stringify(resultat) });
     }
   }

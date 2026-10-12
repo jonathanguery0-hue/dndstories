@@ -111,6 +111,17 @@
   </div>
 </main>
 
+<!-- ============ PLATEAU DE DÉS ============ -->
+<div id="plateau-des" class="plateau cache" role="dialog" aria-modal="true" aria-labelledby="plateau-titre">
+  <div class="plateau-carte">
+    <p class="plateau-titre" id="plateau-titre"></p>
+    <p class="plateau-info" id="plateau-info"></p>
+    <div class="plateau-zone" id="plateau-zone"></div>
+    <p class="plateau-resultat" id="plateau-resultat" aria-live="polite"></p>
+    <button type="button" class="bouton principal" id="plateau-lancer">🎲 Lancer le dé</button>
+  </div>
+</div>
+
 <!-- ============ RÉGLAGES ============ -->
 <dialog id="reglages">
   <form method="dialog" id="formulaire-reglages">
@@ -153,6 +164,10 @@
         <p class="aide">Laisse vide pour utiliser OpenAI.</p>
       </details>
     </div>
+    <h3>🎲 Dés</h3>
+    <label class="case"><input type="checkbox" id="des-manuels"> Lancer moi-même mes d20 (tests, attaques, sauvegardes)</label>
+    <label class="case"><input type="checkbox" id="des-son"> Bruit des dés</label>
+
     <div id="section-voix" class="cache">
       <h3>🔊 Voix du maître du jeu</h3>
       <div class="choix-mode">

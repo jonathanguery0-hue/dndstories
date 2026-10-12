@@ -14,7 +14,7 @@ Rien à installer : ça marche sur ordinateur, tablette et téléphone.
 
 - 🧙 **Création de personnage** : 9 races, 6 classes (Guerrier, Barbare, Roublard, Rôdeur, Clerc, Magicien), caractéristiques, compétences, historique.
 - 📜 **Fiche toujours à jour** : PV, CA, attaques, sorts, inventaire, or, XP et niveaux.
-- 🎲 **De vrais dés** : c'est le jeu qui lance les dés et applique les règles. L'IA ne peut ni tricher ni « oublier » tes PV.
+- 🎲 **Tu lances tes dés** : pour tes tests, attaques, sauvegardes et ton initiative, la partie s'arrête et tu lances toi-même ton d20 à l'écran (animation, bruit de dés, vibration). Le jeu applique ensuite les règles : l'IA ne peut ni tricher ni « oublier » tes PV.
 - ⚔️ **Combats** : initiative, attaques, sorts, ennemis avec barres de vie, jets contre la mort.
 - 🗺️ **Trois aventures** : *Les Ombres de Brumesaule* (enquête et nécromancie), *La Caravane de l'Aube* (voyage et complot), ou une **aventure libre** improvisée.
 - 📖 **Le SRD 5.1 complet embarqué** : le MJ consulte les vraies règles, les 319 sorts, les 334 monstres et les objets magiques au lieu d'improviser, et peut faire combattre n'importe quel monstre du SRD.
@@ -114,6 +114,7 @@ mensuelle** sur platform.openai.com → *Limits*.
   - `scenarios.js` : les aventures (ajoute la tienne !)
   - `regles.js` : recherche dans le SRD complet (`regles/srd-5.1.json`, regénéré par `node outils/construire-srd.mjs`)
   - `stockage.js` : sauvegardes et réglages dans le navigateur
+  - `plateau.js` : le plateau où le joueur lance ses d20
   - `voix.js` : lecteur vocal ; `tts.js` : voix IA d'OpenAI (via la clé du joueur ou le relais)
   - `serveur.js` : adresse du serveur relais ; le relais lui-même est dans `serveur/worker.js`
   - `app.js` : l'interface ; `sw.js` + `manifest.webmanifest` : installation comme application

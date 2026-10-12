@@ -15,6 +15,17 @@ import {
 /** Action refusée par les règles ; le message est renvoyé à l'IA pour qu'elle corrige. */
 export class ErreurAction extends Error {}
 
+/**
+ * Le joueur doit lancer lui-même un d20 : l'action est interrompue, le joueur lance le dé à l'écran,
+ * puis l'action est rejouée depuis le début avec le résultat obtenu (voir executerAvecJets).
+ */
+export class BesoinDeJet extends Error {
+  constructor(jet) {
+    super("Jet de dé du joueur attendu");
+    this.jet = jet;
+  }
+}
+
 export function nouvelId() {
   const a = new Uint8Array(6);
   crypto.getRandomValues(a);
@@ -73,6 +84,8 @@ export class Moteur {
   constructor(partie) {
     this.partie = partie;
     this.evenements = [];
+    this.interactif = false; // vrai : les d20 du joueur sont lancés par le joueur lui-même
+    this.d20Imposes = [];    // résultats déjà lancés par le joueur, consommés dans l'ordre
   }
 
   get perso() { return this.partie.personnage; }
@@ -81,11 +94,27 @@ export class Moteur {
 
   // ---- utilitaires
 
-  d20Joueur(avantage = false, desavantage = false) {
-    const r = des.d20(avantage, desavantage);
+  /**
+   * d20 du joueur. En mode interactif, utilise les dés lancés à l'écran ; s'il en manque, demande
+   * un lancer (BesoinDeJet). `jet` décrit le lancer pour l'affichage : libelle, bonus, seuil, nomSeuil.
+   */
+  d20Joueur(avantage = false, desavantage = false, jet = {}) {
+    if (avantage && desavantage) avantage = desavantage = false;
+    const tirer = (nombre, details) => {
+      if (!this.interactif) return Array.from({ length: nombre }, () => des.d(20));
+      if (this.d20Imposes.length < nombre) {
+        throw new BesoinDeJet({ libelle: "Jet", bonus: 0, ...jet, ...details, avantage, desavantage, nombre });
+      }
+      return this.d20Imposes.splice(0, nombre);
+    };
+    const lances = tirer(avantage || desavantage ? 2 : 1, {});
+    const r = {
+      resultat: avantage ? Math.max(...lances) : desavantage ? Math.min(...lances) : lances[0],
+      des: lances,
+    };
     // Chanceux (halfelin) : un 1 naturel est relancé.
     if (this.perso.race === "Halfelin pied-léger" && r.resultat === 1) {
-      const nouveau = des.d(20);
+      const [nouveau] = tirer(1, { libelle: `Chanceux ! Relance du 1 — ${jet.libelle ?? "jet"}`, chanceux: true });
       r.des.push(nouveau);
       r.resultat = nouveau;
       r.chanceux = true;
@@ -219,7 +248,8 @@ export class Moteur {
     } else {
       throw new ErreurAction("type doit être 'competence', 'caracteristique' ou 'sauvegarde'");
     }
-    const r = this.d20Joueur(avantage, desavantage);
+    const r = this.d20Joueur(avantage, desavantage,
+      { libelle: raison ? `${libelle} — ${raison}` : libelle, bonus, seuil: dd || null, nomSeuil: "DD" });
     const total = r.resultat + bonus;
     const res = { test: libelle, des: r.des, bonus, total };
     let txt = `${libelle} : ${Moteur.desTxt(r)} ${signe(bonus)} = ${total}`;
@@ -284,7 +314,8 @@ export class Moteur {
       }
     }
     const p = this.perso;
-    const initJoueur = this.d20Joueur().resultat + mod(p.caracs.DEX);
+    const initJoueur = this.d20Joueur(false, false,
+      { libelle: "Initiative — le combat commence !", bonus: mod(p.caracs.DEX) }).resultat + mod(p.caracs.DEX);
     const ordre = [{ nom: p.nom, init: initJoueur, joueur: true }];
     for (const e of liste) ordre.push({ nom: e.id, init: des.d(20) + e.dex, joueur: false });
     ordre.sort((a, b) => b.init - a.init || Number(b.joueur) - Number(a.joueur));
@@ -310,7 +341,8 @@ export class Moteur {
     if (e.etat === "vaincu") throw new ErreurAction(`${e.id} est déjà vaincu.`);
     if (e.etat === "endormi") avantage = true;
     const bonus = bonusAttaqueArme(p, a);
-    const r = this.d20Joueur(avantage, desavantage);
+    const r = this.d20Joueur(avantage, desavantage,
+      { libelle: `Attaque (${a.nom}) contre ${e.id}`, bonus, seuil: e.ca, nomSeuil: "CA", attaque: true });
     const total = r.resultat + bonus;
     const critique = r.resultat === 20;
     const touche = critique || (r.resultat !== 1 && total >= e.ca);
@@ -422,7 +454,8 @@ export class Moteur {
             lignes.push(`${e.id} est déjà vaincu`);
             continue;
           }
-          const r = this.d20Joueur(e.etat === "endormi");
+          const r = this.d20Joueur(e.etat === "endormi", false,
+            { libelle: `${nom} contre ${e.id}`, bonus, seuil: e.ca, nomSeuil: "CA", attaque: true });
           const total = r.resultat + bonus;
           const crit = r.resultat === 20;
           const debut = `${e.id} : ${Moteur.desTxt(r)} ${signe(bonus)} = ${total} vs CA ${e.ca} → `;
@@ -567,7 +600,8 @@ export class Moteur {
     const m = p.mort;
     if (p.pv > 0) throw new ErreurAction(`${p.nom} n'est pas à 0 PV.`);
     if (m.mort || m.stable) throw new ErreurAction(`${p.nom} est ${m.mort ? "mort" : "stabilisé"}.`);
-    const r = this.d20Joueur();
+    const r = this.d20Joueur(false, false,
+      { libelle: `Jet contre la mort (${m.succes} ✓ / ${m.echecs} ✗)`, bonus: 0, seuil: 10, nomSeuil: "réussite à" });
     const v = r.resultat;
     let txt;
     if (v === 20) {
@@ -750,8 +784,39 @@ export class Moteur {
     try {
       return this[nom](args && typeof args === "object" ? args : {});
     } catch (e) {
+      if (e instanceof BesoinDeJet) throw e;
       if (e instanceof ErreurAction) return { erreur: e.message };
       return { erreur: `Arguments invalides pour ${nom} : ${e.message}` };
+    }
+  }
+
+  /**
+   * Exécute un outil ; si le joueur doit lancer un d20, attend son lancer (demanderJet) puis rejoue
+   * l'action depuis l'état de départ avec les dés obtenus. Sans demanderJet, les dés sont automatiques.
+   */
+  async executerAvecJets(nom, args, demanderJet) {
+    if (!demanderJet) return this.executer(nom, args);
+    const depart = structuredClone(this.partie);
+    const nbEvenements = this.evenements.length;
+    const lances = [];
+    this.interactif = true;
+    try {
+      for (;;) {
+        this.d20Imposes = [...lances];
+        try {
+          return this.executer(nom, args);
+        } catch (e) {
+          if (!(e instanceof BesoinDeJet)) throw e;
+          // On revient à l'état d'avant l'action, le temps que le joueur lance son dé.
+          for (const cle of Object.keys(this.partie)) delete this.partie[cle];
+          Object.assign(this.partie, structuredClone(depart));
+          this.evenements.length = nbEvenements;
+          lances.push(...await demanderJet(e.jet));
+        }
+      }
+    } finally {
+      this.interactif = false;
+      this.d20Imposes = [];
     }
   }
 }

@@ -273,6 +273,59 @@ details { margin-bottom: 1rem; }
 .aide.succes { color: var(--vert); }
 summary { cursor: pointer; color: var(--discret); }
 
+/* ---- Plateau de dés */
+.plateau {
+  position: fixed; inset: 0; z-index: 100; display: flex; align-items: center; justify-content: center;
+  background: radial-gradient(circle at center, rgba(23, 20, 15, .75), rgba(0, 0, 0, .85)); padding: 16px;
+  animation: apparition .2s ease-out;
+}
+.plateau-carte {
+  width: min(420px, 100%); text-align: center; background: var(--carte); border: 1px solid var(--or-fonce);
+  border-radius: 16px; padding: 1.4rem 1.2rem 1.2rem; box-shadow: 0 10px 50px rgba(0, 0, 0, .6);
+}
+.plateau-titre { font-family: "Cinzel", Georgia, serif; color: var(--or); font-size: 1.15rem; margin: 0 0 .2rem; }
+.plateau-info { color: var(--discret); font-size: .9rem; margin: 0 0 1rem; min-height: 1.2em; }
+.plateau-zone { display: flex; justify-content: center; gap: 1.2rem; margin: .4rem 0 1rem; perspective: 600px; }
+.d20 {
+  position: relative; width: 120px; height: 120px; padding: 0; border: none; background: none; cursor: pointer;
+  filter: drop-shadow(0 8px 14px rgba(0, 0, 0, .5)); transition: opacity .3s, transform .3s;
+}
+.d20 svg { width: 100%; height: 100%; }
+.d20 .face { fill: #7a1f1f; stroke: var(--or); stroke-width: 2.5; stroke-linejoin: round; }
+.d20 .aretes { fill: none; stroke: rgba(212, 166, 74, .55); stroke-width: 1.5; stroke-linejoin: round; }
+.d20 .valeur {
+  position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; padding-top: 14px;
+  font-family: "Cinzel", Georgia, serif; font-weight: 700; font-size: 1.9rem; color: var(--parchemin);
+  text-shadow: 0 2px 4px rgba(0, 0, 0, .7);
+}
+.d20:not(.roule):not(.pose) { animation: attente 2.4s ease-in-out infinite; }
+.d20.roule { animation: roule .5s linear infinite; }
+.d20.pose { animation: pose .45s cubic-bezier(.2, 1.6, .4, 1); }
+.d20.ecarte { opacity: .35; transform: scale(.85); }
+.d20.vingt .face { fill: #8a6a12; }
+.d20.vingt { filter: drop-shadow(0 0 22px rgba(255, 200, 80, .9)); }
+.d20.un .face { fill: #2d2d2d; }
+.plateau-resultat { min-height: 1.6em; font-size: 1.1rem; font-weight: 600; margin: 0 0 1rem; }
+.plateau-resultat.reussite { color: var(--vert); }
+.plateau-resultat.echec { color: var(--rouge); }
+.plateau-resultat.critique { color: #f0c552; }
+#plateau-lancer { min-width: 60%; font-size: 1rem; padding: .7rem 1rem; }
+@keyframes attente { 50% { transform: translateY(-6px) rotate(-4deg); } }
+@keyframes roule {
+  0% { transform: translate(0, 0) rotate(0) scale(1); }
+  25% { transform: translate(-14px, -22px) rotate(100deg) scale(1.08); }
+  50% { transform: translate(10px, 4px) rotate(200deg) scale(.95); }
+  75% { transform: translate(14px, -16px) rotate(290deg) scale(1.05); }
+  100% { transform: translate(0, 0) rotate(360deg) scale(1); }
+}
+@keyframes pose { 0% { transform: scale(1.35) rotate(-20deg); } 100% { transform: scale(1) rotate(0); } }
+@keyframes apparition { from { opacity: 0; } }
+@media (prefers-reduced-motion: reduce) {
+  .d20, .d20.roule, .d20.pose, .plateau { animation: none !important; }
+}
+label.case { display: flex; gap: .5rem; align-items: center; margin-bottom: .5rem; cursor: pointer; }
+label.case input { accent-color: var(--or); width: auto; }
+
 @media (max-width: 900px) {
   body { font-size: 17px; }
   .ecran { padding: .8rem 16px; }

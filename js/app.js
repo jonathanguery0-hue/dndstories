@@ -9,6 +9,7 @@ import { chargerRegles } from "./regles.js";
 import * as stockage from "./stockage.js";
 import { syntheseOpenAI, syntheseServeur, ErreurVoix, VOIX_IA } from "./tts.js";
 import * as voix from "./voix.js";
+import { chargerPreferencesDes, enregistrerPreferencesDes, lancerAuPlateau } from "./plateau.js";
 
 // ------------------------------------------------------------------ utilitaires
 
@@ -220,7 +221,21 @@ function preferencesVoixFormulaire() {
 
 $$('input[name="moteur-voix"]').forEach((r) => r.addEventListener("change", afficherMoteurVoix));
 
+/** Le joueur lance son d20 sur le plateau ; le maître du jeu attend pendant ce temps. */
+async function demanderJet(jet) {
+  $("#reflexion").classList.add("cachee");
+  voix.arreter();
+  try {
+    return await lancerAuPlateau(jet);
+  } finally {
+    $("#reflexion").classList.remove("cachee");
+  }
+}
+
 function ouvrirReglages() {
+  const prefsDes = chargerPreferencesDes();
+  $("#des-manuels").checked = prefsDes.manuel;
+  $("#des-son").checked = prefsDes.son;
   $("#section-voix").classList.toggle("cache", !voix.voixDisponible());
   if (voix.voixDisponible()) {
     remplirVoix();
@@ -279,6 +294,7 @@ $("#enregistrer-reglages").addEventListener("click", (e) => {
   e.preventDefault();
   try {
     CONFIG = stockage.enregistrerConfig(valeursReglages());
+    enregistrerPreferencesDes({ manuel: $("#des-manuels").checked, son: $("#des-son").checked });
     if (voix.voixDisponible()) {
       voix.enregistrerPreferences(preferencesVoixFormulaire());
     }
@@ -747,7 +763,8 @@ async function envoyer(texte, actionDirecte = null) {
     const appeler = creerClient(CONFIG);
     // On joue le tour sur une copie : en cas d'erreur, la partie reste intacte et on peut réessayer.
     const copie = structuredClone(PARTIE);
-    await jouerTour(copie, texte.slice(0, 2000), appeler, actionDirecte);
+    await jouerTour(copie, texte.slice(0, 2000), appeler, actionDirecte,
+      { demanderJet: chargerPreferencesDes().manuel ? demanderJet : null });
     try { await condenserMemoire(copie, appeler); } catch { /* on réessaiera au prochain tour */ }
     PARTIE = copie;
     if (!actionDirecte) $("#action").value = "";
