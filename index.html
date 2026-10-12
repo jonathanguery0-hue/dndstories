@@ -155,7 +155,17 @@
     </div>
     <div id="section-voix" class="cache">
       <h3>🔊 Voix du maître du jeu</h3>
-      <label>Voix
+      <div class="choix-mode">
+        <label><input type="radio" name="moteur-voix" value="ia"> ✨ Voix IA naturelle (OpenAI, ≈ 1,5 centime par minute écoutée)</label>
+        <label id="option-voix-appareil"><input type="radio" name="moteur-voix" value="appareil"> 📱 Voix de l'appareil (gratuite, parfois robotique)</label>
+      </div>
+      <label id="ligne-voix-ia">Voix
+        <span class="ligne">
+          <select id="choix-voix-ia"></select>
+          <button type="button" class="bouton" id="tester-voix-ia">Écouter</button>
+        </span>
+      </label>
+      <label id="ligne-voix-appareil">Voix
         <span class="ligne">
           <select id="choix-voix"></select>
           <button type="button" class="bouton" id="tester-voix">Écouter</button>
@@ -164,8 +174,7 @@
       <label>Vitesse : <span id="valeur-vitesse">1</span>×
         <input type="range" id="vitesse-voix" min="0.7" max="1.5" step="0.05">
       </label>
-      <p class="aide">Les voix viennent de ton appareil : leur qualité varie (les voix « naturelles » de Edge,
-        Chrome, Android ou iPhone sont les meilleures).</p>
+      <p class="aide" id="aide-voix"></p>
     </div>
     <p class="erreur" id="erreur-reglages"></p>
     <div class="ligne fin">

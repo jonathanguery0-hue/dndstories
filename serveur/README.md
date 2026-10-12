@@ -70,5 +70,5 @@ le taper dans ⚙️ Réglages.)
 ## Pour les curieux
 
 - Le serveur ne fait qu'une chose : vérifier le code, puis transmettre la requête à OpenAI avec ta clé.
-- Adresses : `GET /verifier` (teste un code, en-tête `X-Code-Acces`) et `POST /v1/chat/completions`.
+- Adresses : `GET /verifier` (teste un code, en-tête `X-Code-Acces`), `POST /v1/chat/completions` (l'IA) et `POST /v1/audio/speech` (la voix IA).
 - Il ne stocke rien : les parties restent dans le navigateur de chaque joueur.

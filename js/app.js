@@ -7,6 +7,7 @@ import { clientOpenAI, clientServeur, condenserMemoire, jouerTour, listerModeles
 import { SERVEUR_URL } from "./serveur.js";
 import { chargerRegles } from "./regles.js";
 import * as stockage from "./stockage.js";
+import { syntheseOpenAI, syntheseServeur, ErreurVoix, VOIX_IA } from "./tts.js";
 import * as voix from "./voix.js";
 
 // ------------------------------------------------------------------ utilitaires
@@ -180,7 +181,35 @@ function remplirVoix() {
   $("#choix-voix").innerHTML = liste.length
     ? liste.map((v) => `<option value="${echapper(v.name)}" ${v.name === prefs.voix ? "selected" : ""}>${echapper(v.name)}</option>`).join("")
     : '<option value="">Voix française par défaut</option>';
+  $("#choix-voix-ia").innerHTML = Object.entries(VOIX_IA)
+    .map(([id, nom]) => `<option value="${id}" ${id === prefs.voixIA ? "selected" : ""}>${echapper(nom)}</option>`).join("");
+  const moteur = voix.voixAppareilDisponible() ? prefs.moteur : "ia";
+  $$('input[name="moteur-voix"]').forEach((r) => { r.checked = r.value === moteur; });
+  $("#option-voix-appareil").classList.toggle("cache", !voix.voixAppareilDisponible());
+  afficherMoteurVoix();
 }
+
+function moteurVoixChoisi() {
+  return $('input[name="moteur-voix"]:checked')?.value ?? "ia";
+}
+
+function afficherMoteurVoix() {
+  const ia = moteurVoixChoisi() === "ia";
+  $("#ligne-voix-ia").classList.toggle("cache", !ia);
+  $("#ligne-voix-appareil").classList.toggle("cache", ia);
+  $("#aide-voix").textContent = ia
+    ? "Voix générée par OpenAI avec ta clé (ou le code d'accès de l'organisateur). Une réponse déjà écoutée n'est pas payée deux fois."
+    : "Les voix viennent de ton appareil : les voix « naturelles » de Edge, Chrome, Android ou iPhone sont les meilleures.";
+}
+
+function preferencesVoixFormulaire() {
+  return {
+    moteur: moteurVoixChoisi(), voix: $("#choix-voix").value, voixIA: $("#choix-voix-ia").value,
+    vitesse: Number($("#vitesse-voix").value),
+  };
+}
+
+$$('input[name="moteur-voix"]').forEach((r) => r.addEventListener("change", afficherMoteurVoix));
 
 function ouvrirReglages() {
   $("#section-voix").classList.toggle("cache", !voix.voixDisponible());
@@ -242,7 +271,7 @@ $("#enregistrer-reglages").addEventListener("click", (e) => {
   try {
     CONFIG = stockage.enregistrerConfig(valeursReglages());
     if (voix.voixDisponible()) {
-      voix.enregistrerPreferences({ voix: $("#choix-voix").value, vitesse: Number($("#vitesse-voix").value) });
+      voix.enregistrerPreferences(preferencesVoixFormulaire());
     }
     $("#reglages").close();
     $("#alerte-config").classList.toggle("cachee", stockage.estConfigure(CONFIG));
@@ -795,8 +824,23 @@ function majBoutonVoix() {
 if (voix.voixDisponible()) {
   $("#bouton-voix").classList.remove("cache");
   majBoutonVoix();
-  speechSynthesis.addEventListener?.("voiceschanged", () => { if ($("#reglages").open) remplirVoix(); });
+  if (voix.voixAppareilDisponible()) {
+    speechSynthesis.addEventListener?.("voiceschanged", () => { if ($("#reglages").open) remplirVoix(); });
+  }
 }
+
+// Voix IA : passe par la clé du joueur ou par le serveur relais, selon les réglages.
+voix.definirSourceIA((texte, voixIA) => {
+  if (!stockage.estConfigure(CONFIG)) throw new ErreurVoix("Ajoute ta clé ou ton code d'accès pour la voix IA.");
+  return CONFIG.mode === "serveur"
+    ? syntheseServeur({ url: SERVEUR_URL, code: CONFIG.code }, texte, voixIA)
+    : syntheseOpenAI(CONFIG, texte, voixIA);
+});
+
+voix.quandErreur((message) => {
+  const zone = $("#reglages").open ? $("#erreur-reglages") : $("#erreur-jeu");
+  zone.textContent = message;
+});
 
 $("#bouton-voix").addEventListener("click", () => {
   const auto = !voix.chargerPreferences().auto;
@@ -829,7 +873,21 @@ voix.quandLectureChange((id) => {
 });
 
 $("#vitesse-voix").addEventListener("input", (e) => { $("#valeur-vitesse").textContent = e.target.value; });
-$("#tester-voix").addEventListener("click", () => {
-  voix.enregistrerPreferences({ voix: $("#choix-voix").value, vitesse: Number($("#vitesse-voix").value) });
-  voix.lire("La brume monte du lac Morne. Au loin, une cloche sonne trois coups… Que fais-tu ?", "test");
-});
+const PHRASE_TEST = "La brume monte du lac Morne. Au loin, une cloche sonne trois coups… "
+  + "« Qui va là ? » murmure le vieux passeur. Que fais-tu ?";
+
+function testerVoix() {
+  $("#erreur-reglages").textContent = "";
+  try {
+    CONFIG = stockage.enregistrerConfig(valeursReglages()); // la voix IA utilise la clé ou le code saisi
+  } catch (err) {
+    $("#erreur-reglages").textContent = err.message;
+    return;
+  }
+  voix.enregistrerPreferences(preferencesVoixFormulaire());
+  voix.lire(PHRASE_TEST, "test");
+}
+
+$("#tester-voix").addEventListener("click", testerVoix);
+$("#tester-voix-ia").addEventListener("click", testerVoix);
+$("#reglages").addEventListener("close", () => { if (voix.lectureEnCours() === "test") voix.arreter(); });

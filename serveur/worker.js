@@ -7,10 +7,18 @@
 //   OPENAI_API_KEY  (secret)  la clé OpenAI, « sk-… »
 //   CODES_ACCES     (secret)  les joueurs et leurs codes : « jonathan:dragon-rouge-42,lea:lune-bleue-17 »
 //   MODELE          (texte)   le modèle utilisé pour tout le monde, ex. « gpt-5-mini » (facultatif)
+//   MODELE_VOIX     (texte)   le modèle de voix IA, ex. « gpt-4o-mini-tts » (facultatif)
 //   ORIGINES        (texte)   adresses autorisées, ex. « https://jonathanguery0-hue.github.io » (facultatif)
 
 const OPENAI_URL = "https://api.openai.com/v1/chat/completions";
+const OPENAI_VOIX_URL = "https://api.openai.com/v1/audio/speech";
 const MODELE_DEFAUT = "gpt-5-mini";
+const MODELE_VOIX_DEFAUT = "gpt-4o-mini-tts";
+const MODELE_VOIX_SECOURS = "tts-1";
+const VOIX = ["alloy", "ash", "ballad", "coral", "echo", "fable", "nova", "onyx", "sage", "shimmer", "verse"];
+const CONSIGNES_VOIX = "Tu es le narrateur d'un jeu de rôle de fantasy. Parle en français de France, sans accent "
+  + "étranger, sur un ton de conteur : posé, chaleureux et immersif, avec du suspense dans les moments tendus. "
+  + "Fais vivre les dialogues des personnages sans exagérer.";
 const TAILLE_MAX = 400_000; // caractères par requête : une partie normale en utilise bien moins
 
 export default {
@@ -41,6 +49,41 @@ export default {
     if (chemin === "/verifier" && request.method === "GET") {
       if (!joueur) return erreur(401, "Code d'accès invalide.", "code_invalide");
       return json(200, { ok: true, joueur, modele: env.MODELE || MODELE_DEFAUT });
+    }
+
+    if (chemin === "/v1/audio/speech" && request.method === "POST") {
+      if (!joueur) return erreur(401, "Code d'accès invalide.", "code_invalide");
+      if (!env.OPENAI_API_KEY) return erreur(500, "Le serveur n'a pas de clé OpenAI configurée.", "serveur_sans_cle");
+      let corps;
+      try {
+        corps = JSON.parse(await request.text());
+      } catch {
+        return erreur(400, "Requête invalide.");
+      }
+      const texte = String(corps?.input ?? "").trim();
+      if (!texte || texte.length > 4096) return erreur(400, "Texte à lire vide ou trop long.");
+      const voix = VOIX.includes(corps.voice) ? corps.voice : "onyx";
+      const modele = env.MODELE_VOIX || MODELE_VOIX_DEFAUT;
+      const synthese = (envoi) => fetch(OPENAI_VOIX_URL, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${env.OPENAI_API_KEY}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ voice: voix, input: texte, response_format: "mp3", ...envoi }),
+      });
+      let reponse;
+      try {
+        reponse = await synthese({ model: modele, instructions: CONSIGNES_VOIX });
+        if (reponse.status === 404 || reponse.status === 400) reponse = await synthese({ model: MODELE_VOIX_SECOURS });
+      } catch {
+        return erreur(502, "OpenAI ne répond pas. Réessaie dans un instant.");
+      }
+      console.log(`joueur=${joueur} voix statut=${reponse.status} caracteres=${texte.length}`);
+      if (reponse.status === 401) {
+        return erreur(502, "La clé OpenAI du serveur est refusée : l'organisateur doit la vérifier.", "cle_serveur_refusee");
+      }
+      return new Response(reponse.body, {
+        status: reponse.status,
+        headers: { ...cors, "Content-Type": reponse.headers.get("Content-Type") ?? "audio/mpeg" },
+      });
     }
 
     if (chemin !== "/v1/chat/completions" || request.method !== "POST") return erreur(404, "Adresse inconnue.");

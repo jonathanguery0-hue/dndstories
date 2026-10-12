@@ -18,7 +18,7 @@ Rien à installer : ça marche sur ordinateur, tablette et téléphone.
 - ⚔️ **Combats** : initiative, attaques, sorts, ennemis avec barres de vie, jets contre la mort.
 - 🗺️ **Trois aventures** : *Les Ombres de Brumesaule* (enquête et nécromancie), *La Caravane de l'Aube* (voyage et complot), ou une **aventure libre** improvisée.
 - 📖 **Le SRD 5.1 complet embarqué** : le MJ consulte les vraies règles, les 319 sorts, les 334 monstres et les objets magiques au lieu d'improviser, et peut faire combattre n'importe quel monstre du SRD.
-- 🔊 **Lecteur vocal** : le maître du jeu peut lire ses réponses à voix haute (bouton **Voix**), avec la voix et la vitesse de ton choix.
+- 🔊 **Lecteur vocal** : le maître du jeu lit ses réponses à voix haute (bouton **Voix**) avec une **voix IA naturelle** d'OpenAI (≈ 1,5 centime par minute écoutée) ou la voix gratuite de l'appareil.
 - 💾 **Sauvegarde automatique** dans ton navigateur, avec export/import pour changer d'appareil.
 
 ---
@@ -97,7 +97,7 @@ sauvegarde** sur l'autre appareil. Vider les données du navigateur efface les p
   - `scenarios.js` : les aventures (ajoute la tienne !)
   - `regles.js` : recherche dans le SRD complet (`regles/srd-5.1.json`, regénéré par `node outils/construire-srd.mjs`)
   - `stockage.js` : sauvegardes et réglages dans le navigateur
-  - `voix.js` : lecteur vocal (synthèse vocale du navigateur)
+  - `voix.js` : lecteur vocal ; `tts.js` : voix IA d'OpenAI (via la clé du joueur ou le relais)
   - `serveur.js` : adresse du serveur relais ; le relais lui-même est dans `serveur/worker.js`
   - `app.js` : l'interface ; `sw.js` + `manifest.webmanifest` : installation comme application
 - **Tester en local** : `python3 -m http.server` à la racine puis ouvrir http://localhost:8000
