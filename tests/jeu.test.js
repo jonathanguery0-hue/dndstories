@@ -285,3 +285,76 @@ test("sauvegarde, liste, import et réglages", () => {
     delete globalThis.localStorage;
   }
 });
+
+// ------------------------------------------------------------------ rage et résistances
+
+const barbare = () => creerPersonnage({
+  nom: "Grosha", race: "Demi-orc", classe: "Barbare",
+  caracs: { FOR: 15, DEX: 13, CON: 14, INT: 8, SAG: 12, CHA: 10 }, competences: ["Athlétisme", "Survie"],
+});
+
+test("la rage divise par deux les dégâts tranchants, pas les dégâts de feu", () => {
+  const partie = nouvellePartie(barbare(), "libre");
+  const m = new Moteur(partie);
+  const p = partie.personnage;
+  p.pv_max = p.pv = 500; // pour encaisser sans tomber
+  m.utiliser_capacite({ nom: "Rage" });
+  assert.ok(vueFiche(p).resistances.includes("tranchant"));
+  m.commencer_combat({ ennemis: [{ nom: "Orc" }, { nom: "Mage", ca: 10, pv: 10, attaque: 20, degats: "10", type_degats: "feu" }] });
+  let touche = null;
+  for (let i = 0; i < 50 && !touche; i++) {
+    const r = m.attaque_ennemi({ ennemi: "Orc" });
+    if (r.touche) touche = r;
+  }
+  assert.equal(touche.type_degats, "tranchant");
+  assert.ok(touche.resistance);
+  const avant = p.pv;
+  const feu = m.attaque_ennemi({ ennemi: "Mage" });
+  if (!feu.critique) assert.equal(avant - p.pv, 10);
+  assert.ok(!feu.resistance);
+  // Un piège tranchant hors attaque est aussi réduit.
+  const piege = m.modifier_pv_joueur({ type: "degats", formule: "10", type_degats: "tranchant" });
+  assert.equal(piege.montant, 5);
+  // La rage prend fin avec le combat.
+  m.fin_combat({ issue: "fuite" });
+  assert.equal(vueFiche(p).resistances.length, 0);
+});
+
+test("la rage ne s'active que par la capacité", () => {
+  const partie = nouvellePartie(barbare(), "libre");
+  const m = new Moteur(partie);
+  assert.match(m.executer("modifier_condition", { action: "ajouter", condition: "En rage" }).erreur, /utiliser_capacite/);
+  m.utiliser_capacite({ nom: "rage" });
+  assert.equal(partie.personnage.capacites.find((c) => c.nom === "Rage").utilisations, 1);
+  m.modifier_condition({ action: "retirer", condition: "rage" });
+  assert.equal(partie.personnage.conditions.length, 0);
+});
+
+test("résistance raciale du nain au poison", () => {
+  const partie = nouvellePartie(guerrier(), "libre");
+  const m = new Moteur(partie);
+  assert.equal(m.modifier_pv_joueur({ type: "degats", formule: "6", type_degats: "poison" }).montant, 3);
+  assert.equal(m.modifier_pv_joueur({ type: "degats", formule: "6", type_degats: "feu" }).montant, 6);
+});
+
+test("les effets actifs sont expliqués à l'IA", () => {
+  const partie = nouvellePartie(barbare(), "libre");
+  new Moteur(partie).utiliser_capacite({ nom: "Rage" });
+  const systeme = mj.construireSysteme(partie);
+  assert.match(systeme, /RAGE ACTIVE/);
+  assert.match(systeme, /contondant, perforant, tranchant/);
+});
+
+test("une capacité cliquée est appliquée par le moteur avant l'IA", async () => {
+  const partie = nouvellePartie(barbare(), "libre");
+  const { appeler, requetes } = fauxClient([{ content: "Une fureur rouge t'envahit !" }]);
+  await mj.jouerTour(partie, "J'utilise ma capacité « Rage » !", appeler,
+    { outil: "utiliser_capacite", args: { nom: "Rage" } });
+  assert.ok(partie.personnage.conditions.includes("Rage"));
+  assert.match(requetes[0].messages.at(-1).content, /déjà appliqué/);
+  assert.deepEqual(partie.affichage.map((a) => a.type), ["joueur", "de", "mj"]);
+  // Plus d'utilisation : refusé sans appeler l'IA.
+  partie.personnage.capacites.find((c) => c.nom === "Rage").utilisations = 0;
+  await assert.rejects(mj.jouerTour(partie, "Rage !", appeler, { outil: "utiliser_capacite", args: { nom: "Rage" } }), /plus d'utilisation/);
+  assert.equal(requetes.length, 1);
+});

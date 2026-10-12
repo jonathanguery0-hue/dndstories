@@ -8,6 +8,10 @@ que tu écris. Les règles viennent de la 5e édition open source (SRD 5.1).
 
 Rien à installer : ça marche sur ordinateur, tablette et téléphone.
 
+📲 **L'installer comme une application** (icône sur l'écran d'accueil, plein écran) :
+- **Android / Chrome / Edge** : bouton **« Installer l'application »** sur l'accueil du jeu (ou menu ⋮ → *Installer l'application*).
+- **iPhone / iPad** : dans Safari, bouton **Partager** → **« Sur l'écran d'accueil »**.
+
 - 🧙 **Création de personnage** : 9 races, 6 classes (Guerrier, Barbare, Roublard, Rôdeur, Clerc, Magicien), caractéristiques, compétences, historique.
 - 📜 **Fiche toujours à jour** : PV, CA, attaques, sorts, inventaire, or, XP et niveaux.
 - 🎲 **De vrais dés** : c'est le jeu qui lance les dés et applique les règles. L'IA ne peut ni tricher ni « oublier » tes PV.
@@ -44,6 +48,10 @@ plus grand raconte mieux mais coûte plus cher.
 - Quand l'issue est incertaine, le MJ fait lancer les dés. Les résultats s'affichent dans le récit (🎲).
 - La fiche à droite (ou le bouton **📋 Fiche** sur téléphone) se met à jour toute seule.
 - Le **Journal** garde les indices, personnages et quêtes importants.
+- Les capacités limitées (Rage, Second souffle…) ont un bouton **Utiliser** dans la fiche : le jeu
+  applique l'effet tout de suite (résistances, bonus…) et le MJ le raconte.
+- Les **résistances** (Rage du barbare, nain contre le poison, tieffelin contre le feu…) sont
+  appliquées automatiquement aux dégâts.
 - En combat, décris ton action (*« J'attaque le gobelin le plus proche avec ma dague »*) ; le MJ fait
   ensuite agir les ennemis.
 
@@ -77,7 +85,7 @@ sauvegarde** sur l'autre appareil. Vider les données du navigateur efface les p
   - `personnage.js`, `srd.js`, `des.js` : la fiche, les données de règles et les dés
   - `scenarios.js` : les aventures (ajoute la tienne !)
   - `stockage.js` : sauvegardes et réglages dans le navigateur
-  - `app.js` : l'interface
+  - `app.js` : l'interface ; `sw.js` + `manifest.webmanifest` : installation comme application
 - **Tester en local** : `python3 -m http.server` à la racine puis ouvrir http://localhost:8000
 - **Tests automatiques** : `npm test` (Node.js 20 ou plus)
 

@@ -854,6 +854,7 @@ export const MONSTRES = {
     "attaque": 4,
     "degats": "1d6+2",
     "arme": "cimeterre",
+    "type_degats": "tranchant",
     "dex": 2,
     "sauvegarde": 1,
     "xp": 50
@@ -864,6 +865,7 @@ export const MONSTRES = {
     "attaque": 4,
     "degats": "1d4+2",
     "arme": "dague",
+    "type_degats": "perforant",
     "dex": 2,
     "sauvegarde": 1,
     "xp": 25
@@ -874,6 +876,7 @@ export const MONSTRES = {
     "attaque": 4,
     "degats": "2d4+2",
     "arme": "morsure",
+    "type_degats": "perforant",
     "dex": 2,
     "sauvegarde": 1,
     "xp": 50
@@ -884,6 +887,7 @@ export const MONSTRES = {
     "attaque": 4,
     "degats": "1d4+2",
     "arme": "morsure",
+    "type_degats": "perforant",
     "dex": 2,
     "sauvegarde": 0,
     "xp": 25
@@ -894,6 +898,7 @@ export const MONSTRES = {
     "attaque": 4,
     "degats": "1d6+2",
     "arme": "épée courte",
+    "type_degats": "perforant",
     "dex": 2,
     "sauvegarde": 1,
     "xp": 50
@@ -904,6 +909,7 @@ export const MONSTRES = {
     "attaque": 3,
     "degats": "1d6+1",
     "arme": "coup",
+    "type_degats": "contondant",
     "dex": -2,
     "sauvegarde": 1,
     "xp": 50
@@ -914,6 +920,7 @@ export const MONSTRES = {
     "attaque": 3,
     "degats": "1d6+1",
     "arme": "cimeterre",
+    "type_degats": "tranchant",
     "dex": 1,
     "sauvegarde": 1,
     "xp": 25
@@ -924,6 +931,7 @@ export const MONSTRES = {
     "attaque": 5,
     "degats": "1d12+3",
     "arme": "hache à deux mains",
+    "type_degats": "tranchant",
     "dex": 1,
     "sauvegarde": 2,
     "xp": 100
@@ -934,6 +942,7 @@ export const MONSTRES = {
     "attaque": 3,
     "degats": "1d8+1",
     "arme": "épée longue",
+    "type_degats": "tranchant",
     "dex": 1,
     "sauvegarde": 1,
     "xp": 100
@@ -944,6 +953,7 @@ export const MONSTRES = {
     "attaque": 4,
     "degats": "1d8+2",
     "arme": "lance",
+    "type_degats": "perforant",
     "dex": 1,
     "sauvegarde": 1,
     "xp": 100
@@ -954,6 +964,7 @@ export const MONSTRES = {
     "attaque": 4,
     "degats": "2d6+2",
     "arme": "griffes (paralysantes)",
+    "type_degats": "tranchant",
     "dex": 2,
     "sauvegarde": 1,
     "xp": 200
@@ -964,6 +975,7 @@ export const MONSTRES = {
     "attaque": 5,
     "degats": "1d8+3",
     "arme": "morsure venimeuse",
+    "type_degats": "perforant",
     "dex": 3,
     "sauvegarde": 2,
     "xp": 200
@@ -974,6 +986,7 @@ export const MONSTRES = {
     "attaque": 4,
     "degats": "2d8+2",
     "arme": "morgenstern",
+    "type_degats": "perforant",
     "dex": 2,
     "sauvegarde": 1,
     "xp": 200
@@ -984,8 +997,24 @@ export const MONSTRES = {
     "attaque": 6,
     "degats": "2d8+4",
     "arme": "massue",
+    "type_degats": "contondant",
     "dex": -1,
     "sauvegarde": 2,
     "xp": 450
   }
 };
+// Types de dégâts reconnus par le moteur.
+export const TYPES_DEGATS = [
+  "contondant", "perforant", "tranchant", "feu", "froid", "foudre", "tonnerre", "acide", "poison",
+  "nécrotique", "radiant", "force", "psychique",
+];
+
+// Résistances (dégâts divisés par deux) accordées par la race.
+export const RESISTANCES_RACE = {
+  "Nain des collines": ["poison"],
+  "Drakéide": ["feu"],
+  "Tieffelin": ["feu"],
+};
+
+// Résistances accordées par la Rage du barbare.
+export const RESISTANCES_RAGE = ["contondant", "perforant", "tranchant"];

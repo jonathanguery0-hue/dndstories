@@ -61,6 +61,8 @@ a { color: var(--or); }
   padding: 1.4rem; margin-bottom: 1rem; box-shadow: var(--ombre);
 }
 .intro p { font-size: 1.15rem; }
+#installer { margin-left: .4rem; }
+#aide-ios { margin: .8rem 0 0; }
 
 .alerte {
   border: 1px solid var(--or-fonce); background: rgba(212, 166, 74, .12);
@@ -140,14 +142,27 @@ label { display: block; margin-bottom: .9rem; }
 .navigation-etapes { display: flex; justify-content: space-between; margin-top: 1.5rem; gap: 1rem; }
 
 /* ---- Jeu */
-.jeu { display: grid; grid-template-columns: minmax(0, 1fr) 360px; gap: 1rem; align-items: start; }
-.titre-aventure { text-align: center; margin: .2rem 0 .8rem; }
+/* L'écran de jeu occupe exactement la fenêtre : seuls le récit et la fiche défilent. */
+body.mode-jeu { height: 100vh; height: 100dvh; min-height: 0; display: flex; flex-direction: column; overflow: hidden; }
+body.mode-jeu #ecran-jeu { flex: 1; min-height: 0; width: 100%; display: flex; flex-direction: column; }
+
+.jeu {
+  flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(0, 1fr) 360px; gap: 1rem;
+}
+.recit { display: flex; flex-direction: column; min-height: 0; min-width: 0; }
+.entete-jeu { display: flex; align-items: center; justify-content: center; gap: .6rem; margin: 0 0 .6rem; }
+.titre-aventure {
+  text-align: center; margin: 0; flex: 1; min-width: 0; font-size: 1.15rem;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
 
 .histoire {
+  flex: 1; min-height: 0; overflow-y: auto; position: relative; overscroll-behavior: contain;
   background: var(--parchemin); color: var(--encre); border-radius: var(--rayon);
-  padding: 1.3rem 1.5rem; min-height: 50vh; max-height: calc(100vh - 290px); overflow-y: auto;
-  box-shadow: var(--ombre), inset 0 0 60px rgba(120, 90, 40, .25);
+  padding: 1.3rem 1.5rem; box-shadow: var(--ombre), inset 0 0 60px rgba(120, 90, 40, .25);
 }
+.pied-recit { flex-shrink: 0; }
+.statut-mobile { display: none; }
 .histoire .mj p { margin: 0 0 .8rem; }
 .histoire .mj { margin-bottom: 1rem; font-size: 1.1rem; }
 .histoire .joueur {
@@ -167,8 +182,8 @@ label { display: block; margin-bottom: .9rem; }
 .de-anime { display: inline-block; animation: rouler 1s infinite linear; }
 @keyframes rouler { to { transform: rotate(360deg); } }
 
-.saisie { display: flex; gap: .5rem; margin-top: .8rem; align-items: stretch; }
-.saisie textarea { resize: vertical; min-height: 3rem; }
+.saisie { display: flex; gap: .5rem; margin-top: .6rem; align-items: stretch; }
+.saisie textarea { resize: none; min-height: 3rem; max-height: 9rem; }
 .suggestions { display: flex; flex-wrap: wrap; gap: .4rem; margin-top: .5rem; }
 .suggestions button {
   background: none; border: 1px solid var(--bord); color: var(--discret); border-radius: 99px;
@@ -178,10 +193,11 @@ label { display: block; margin-bottom: .9rem; }
 
 .panneau {
   background: var(--carte); border: 1px solid var(--bord); border-radius: var(--rayon);
-  padding: 1rem; position: sticky; top: 70px; max-height: calc(100vh - 85px); overflow-y: auto;
-  box-shadow: var(--ombre);
+  padding: 1rem; min-height: 0; overflow-y: auto; overscroll-behavior: contain; box-shadow: var(--ombre);
 }
-.bascule-panneau { display: none; width: 100%; }
+.bascule-panneau, .entete-tiroir, .voile { display: none; }
+.capacite-entete { display: flex; align-items: center; justify-content: space-between; gap: .5rem; }
+.bouton.petit { padding: .2rem .6rem; font-size: .72rem; }
 
 .onglets { display: flex; gap: .2rem; border-bottom: 1px solid var(--bord); margin: .5rem 0 .8rem; }
 .onglets button {
@@ -242,12 +258,39 @@ summary { cursor: pointer; color: var(--discret); }
 @media (max-width: 900px) {
   body { font-size: 17px; }
   .ecran { padding: .8rem 16px; }
+  body.mode-jeu .barre { padding: .4rem 16px; }
+  body.mode-jeu .ecran { padding: .5rem 12px calc(.5rem + env(safe-area-inset-bottom)); }
   .jeu { grid-template-columns: 1fr; }
-  .panneau { position: static; max-height: none; order: -1; padding: .7rem; }
-  .bascule-panneau { display: block; }
-  .panneau:not(.ouvert) .contenu-panneau { display: none; }
-  .histoire { max-height: none; min-height: 40vh; padding: 1rem; }
-  .saisie { position: sticky; bottom: 0; background: var(--fond); padding: .5rem 0; }
+  .titre-aventure { text-align: left; font-size: 1rem; }
+  .bascule-panneau { display: block; flex-shrink: 0; padding: .35rem .8rem; }
+  .histoire { padding: 1rem; }
+  .histoire .mj { font-size: 1.05rem; }
+  .saisie textarea { min-height: 2.6rem; }
+  .suggestions { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; }
+  .suggestions button { flex-shrink: 0; }
+
+  /* Bandeau compact toujours visible : PV, CA et ennemis */
+  .statut-mobile {
+    display: flex; flex-wrap: wrap; align-items: center; gap: .3rem .8rem; font-size: .85rem;
+    margin: 0 0 .5rem; color: var(--discret);
+  }
+  .statut-mobile .jauge { width: 90px; display: inline-block; vertical-align: middle; }
+  .statut-mobile b { color: var(--texte); }
+  .statut-mobile .ennemis-mini { color: var(--rouge); }
+
+  /* La fiche devient un tiroir qui glisse depuis la droite */
+  .panneau {
+    position: fixed; top: 0; right: 0; bottom: 0; z-index: 50; width: min(400px, 92vw);
+    border-radius: 0; transform: translateX(105%); transition: transform .25s ease;
+    padding-bottom: calc(1rem + env(safe-area-inset-bottom));
+  }
+  .panneau.ouvert { transform: none; }
+  .entete-tiroir {
+    display: flex; justify-content: space-between; align-items: center; margin-bottom: .4rem;
+    font-family: "Cinzel", Georgia, serif; color: var(--or);
+  }
+  .voile { position: fixed; inset: 0; z-index: 40; background: rgba(0, 0, 0, .55); }
+  .voile.visible { display: block; }
   .partie { flex-direction: column; align-items: flex-start; }
   .caracs-grille { grid-template-columns: repeat(2, 1fr); }
 }

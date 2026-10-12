@@ -172,6 +172,31 @@ export function gagnerNiveau(perso) {
   return gagnes;
 }
 
+export const enRage = (perso) => perso.conditions.some((c) => /\brage\b/i.test(c));
+
+/** Types de dégâts auxquels le personnage résiste en ce moment (race + Rage). */
+export function resistances(perso) {
+  const liste = [...(srd.RESISTANCES_RACE[perso.race] ?? [])];
+  if (enRage(perso)) liste.push(...srd.RESISTANCES_RAGE);
+  return [...new Set(liste)];
+}
+
+/** Effets mécaniques actifs, expliqués à l'IA (et appliqués automatiquement par le moteur). */
+export function effetsActifs(perso) {
+  const effets = [];
+  if (enRage(perso)) {
+    effets.push("RAGE ACTIVE : +2 aux dégâts des attaques au corps à corps, avantage aux tests et sauvegardes "
+      + "de Force, résistance aux dégâts contondants, perforants et tranchants. Ne peut pas lancer de sorts. "
+      + "Dure 1 minute (10 rounds) : elle se termine si le barbare n'attaque pas et ne subit pas de dégâts "
+      + "pendant un tour (retire alors la condition « Rage »).");
+  }
+  const res = resistances(perso);
+  if (res.length) effets.push(`Résistances (dégâts divisés par 2) : ${res.join(", ")}.`);
+  if (perso.race === "Halfelin pied-léger") effets.push("Chanceux : les 1 naturels au d20 sont relancés.");
+  if (perso.armure_du_mage) effets.push("Armure du mage active (incluse dans la CA).");
+  return effets;
+}
+
 /** Fiche complète avec toutes les valeurs calculées, pour l'interface. */
 export function vueFiche(p) {
   const lanceur = Boolean(srd.CLASSES[p.classe].lanceur);
@@ -198,6 +223,7 @@ export function vueFiche(p) {
     sorts: sortsConnus(p).map((n) => ({ nom: n, ...srd.SORTS[n] })),
     sort_attaque: lanceur ? bonusAttaqueSort(p) : null,
     sort_dd: lanceur ? ddSort(p) : null,
+    resistances: resistances(p),
   };
 }
 
@@ -224,6 +250,8 @@ export function resumeTexte(p) {
   lignes.push("Inventaire : " + p.inventaire.map((o) => o.nom + (o.quantite > 1 ? ` x${o.quantite}` : "")).join(", ")
     + ` · ${p.or} po`);
   if (p.conditions.length) lignes.push("Conditions : " + p.conditions.join(", "));
+  const effets = effetsActifs(p);
+  if (effets.length) lignes.push("EFFETS ACTIFS (appliqués automatiquement par le moteur) :\n- " + effets.join("\n- "));
   if (p.pv === 0) {
     const m = p.mort;
     const etat = m.mort ? "MORT" : m.stable ? "stabilisé"

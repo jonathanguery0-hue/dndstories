@@ -2,8 +2,14 @@
 <html lang="fr">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>⚔️</text></svg>">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<link rel="icon" href="icones/icone.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="icones/apple-touch-icon.png">
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#17140f">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Contes &amp; Dragons">
 <title>Contes &amp; Dragons</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@600;700&family=Crimson+Pro:ital,wght@0,400;0,600;1,400&display=swap" rel="stylesheet">
@@ -27,6 +33,9 @@
       <a href="#" id="lien-reglages">Réglages ⚙️</a>.
     </div>
     <button class="bouton principal" id="nouvelle-partie">✨ Nouvelle aventure</button>
+    <button class="bouton cache" id="installer">📲 Installer l'application</button>
+    <p class="aide cache" id="aide-ios">📲 Pour l'installer comme une application : touche le bouton
+      <b>Partager</b> de Safari puis <b>« Sur l'écran d'accueil »</b>.</p>
     <noscript><p class="erreur">Ce jeu a besoin de JavaScript pour fonctionner.</p></noscript>
   </section>
   <section class="carte">
@@ -59,36 +68,44 @@
 <main id="ecran-jeu" class="ecran cache">
   <div class="jeu">
     <section class="recit">
-      <h2 id="titre-aventure" class="titre-aventure"></h2>
+      <div class="entete-jeu">
+        <h2 id="titre-aventure" class="titre-aventure"></h2>
+        <button class="bouton bascule-panneau" id="bascule-panneau" aria-controls="panneau">📋 Fiche</button>
+      </div>
+      <div id="statut-mobile" class="statut-mobile"></div>
       <div id="histoire" class="histoire" aria-live="polite"></div>
-      <div id="reflexion" class="reflexion cachee"><span class="de-anime">🎲</span> Le maître du jeu réfléchit…</div>
-      <p class="erreur" id="erreur-jeu"></p>
-      <form id="formulaire-action" class="saisie">
-        <textarea id="action" rows="2" placeholder="Que fais-tu ? (Entrée pour envoyer, Maj+Entrée pour aller à la ligne)"></textarea>
-        <button class="bouton principal" id="envoyer" type="submit">Agir</button>
-      </form>
-      <div class="suggestions" id="suggestions">
-        <button type="button" data-texte="Je regarde attentivement autour de moi.">👀 Observer</button>
-        <button type="button" data-texte="Je prends un repos court d'une heure.">⏳ Repos court</button>
-        <button type="button" data-texte="Je m'installe pour un repos long et je dors.">🌙 Repos long</button>
-        <button type="button" data-texte="Je fais le point : où en suis-je et que sais-je de ma quête ?">📜 Faire le point</button>
+      <div class="pied-recit">
+        <div id="reflexion" class="reflexion cachee"><span class="de-anime">🎲</span> Le maître du jeu réfléchit…</div>
+        <p class="erreur" id="erreur-jeu"></p>
+        <form id="formulaire-action" class="saisie">
+          <textarea id="action" rows="2" placeholder="Que fais-tu ?"></textarea>
+          <button class="bouton principal" id="envoyer" type="submit">Agir</button>
+        </form>
+        <div class="suggestions" id="suggestions">
+          <button type="button" data-texte="Je regarde attentivement autour de moi.">👀 Observer</button>
+          <button type="button" data-texte="Je prends un repos court d'une heure.">⏳ Repos court</button>
+          <button type="button" data-texte="Je m'installe pour un repos long et je dors.">🌙 Repos long</button>
+          <button type="button" data-texte="Je fais le point : où en suis-je et que sais-je de ma quête ?">📜 Faire le point</button>
+        </div>
       </div>
     </section>
-    <aside class="panneau" id="panneau">
-      <div id="combat" class="combat cache"></div>
-      <button class="bouton bascule-panneau" id="bascule-panneau">📋 Fiche du personnage</button>
-      <div class="contenu-panneau">
-        <nav class="onglets">
-          <button data-onglet="fiche" class="actif">Fiche</button>
-          <button data-onglet="inventaire">Sac</button>
-          <button data-onglet="sorts">Sorts</button>
-          <button data-onglet="journal">Journal</button>
-        </nav>
-        <div id="onglet-fiche" class="onglet"></div>
-        <div id="onglet-inventaire" class="onglet cache"></div>
-        <div id="onglet-sorts" class="onglet cache"></div>
-        <div id="onglet-journal" class="onglet cache"></div>
+    <div class="voile" id="voile"></div>
+    <aside class="panneau" id="panneau" aria-label="Fiche du personnage">
+      <div class="entete-tiroir">
+        <span>Fiche du personnage</span>
+        <button class="bouton-icone" id="fermer-panneau" aria-label="Fermer">✕</button>
       </div>
+      <div id="combat" class="combat cache"></div>
+      <nav class="onglets">
+        <button data-onglet="fiche" class="actif">Fiche</button>
+        <button data-onglet="inventaire">Sac</button>
+        <button data-onglet="sorts">Sorts</button>
+        <button data-onglet="journal">Journal</button>
+      </nav>
+      <div id="onglet-fiche" class="onglet"></div>
+      <div id="onglet-inventaire" class="onglet cache"></div>
+      <div id="onglet-sorts" class="onglet cache"></div>
+      <div id="onglet-journal" class="onglet cache"></div>
     </aside>
   </div>
 </main>

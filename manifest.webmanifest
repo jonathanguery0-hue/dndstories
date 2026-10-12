@@ -1,0 +1,16 @@
+{
+  "name": "Contes & Dragons",
+  "short_name": "Contes & Dragons",
+  "description": "Jeu de rôle textuel avec une IA maître du jeu",
+  "lang": "fr",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#17140f",
+  "theme_color": "#17140f",
+  "icons": [
+    { "src": "icones/icone-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "icones/icone-512.png", "sizes": "512x512", "type": "image/png" },
+    { "src": "icones/icone-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}

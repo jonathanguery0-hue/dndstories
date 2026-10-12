@@ -1,7 +1,7 @@
 // L'IA maître du jeu : construit les consignes, appelle le modèle et exécute ses outils.
 
 import * as srd from "./srd.js";
-import { Moteur } from "./moteur.js";
+import { ErreurAction, Moteur } from "./moteur.js";
 import { resumeTexte } from "./personnage.js";
 import { SCENARIOS } from "./scenarios.js";
 
@@ -14,6 +14,7 @@ function outil(name, description, properties, required) {
 }
 
 const BOOL = { type: "boolean" };
+const TYPE_DEGATS = { type: "string", enum: srd.TYPES_DEGATS, description: "Type de dégâts (les résistances du joueur en dépendent)" };
 const STR = { type: "string" };
 
 export const OUTILS = [
@@ -45,6 +46,7 @@ export const OUTILS = [
             pv: { type: "string", description: "Nombre ou formule" },
             attaque: { type: "integer", description: "Bonus au jet d'attaque" },
             degats: { type: "string", description: "Formule de dégâts, ex. '1d6+2'" },
+            type_degats: TYPE_DEGATS,
             arme: { type: "string" },
             xp: { type: "integer" },
           },
@@ -66,7 +68,10 @@ export const OUTILS = [
       niveau_emplacement: { type: "integer", description: "Pour lancer à un niveau supérieur" },
     }, ["sort"]),
   outil("attaque_ennemi", "Un ennemi attaque (le joueur par défaut). Les dégâts sont appliqués automatiquement.",
-    { ennemi: STR, cible: { type: "string", description: "'joueur' ou nom d'un PNJ allié" }, avantage: BOOL, desavantage: BOOL },
+    {
+      ennemi: STR, cible: { type: "string", description: "'joueur' ou nom d'un PNJ allié" }, avantage: BOOL, desavantage: BOOL,
+      type_degats: { ...TYPE_DEGATS, description: "Seulement si différent du type habituel de l'ennemi (ex. sort)" },
+    },
     ["ennemi"]),
   outil("degats_ennemi", "Inflige des dégâts à un ennemi hors attaque classique (piège, chute, objet lancé…).",
     { ennemi: STR, formule: STR, raison: STR }, ["ennemi", "formule"]),
@@ -78,9 +83,11 @@ export const OUTILS = [
     {
       type: { type: "string", enum: ["degats", "soin"] },
       formule: { type: "string", description: "Nombre ou formule, ex. '2d4+2'" }, raison: STR,
+      type_degats: TYPE_DEGATS,
     }, ["type", "formule"]),
   outil("jet_contre_la_mort", "Jet de sauvegarde contre la mort quand le joueur est à 0 PV, à son tour.", {}, []),
-  outil("utiliser_capacite", "Utilise une capacité de classe (Second souffle, Rage…).", { nom: STR }, ["nom"]),
+  outil("utiliser_capacite", "Utilise une capacité de classe (Second souffle, Rage…). OBLIGATOIRE dès que le joueur "
+    + "déclare utiliser une capacité : c'est ce qui active ses effets dans le moteur.", { nom: STR }, ["nom"]),
   outil("gerer_inventaire", "Ajoute ou retire un objet de l'inventaire (trouvé, acheté, donné, consommé).",
     { action: { type: "string", enum: ["ajouter", "retirer"] }, objet: STR, quantite: { type: "integer" } },
     ["action", "objet"]),
@@ -116,6 +123,11 @@ RÈGLES ET OUTILS — TRÈS IMPORTANT
 Leurs résultats font foi, raconte-les fidèlement (réussite, échec, dégâts).
 - Demande un jet (jet_de_test) seulement quand l'issue est incertaine et intéressante.
 - Toute modification de la fiche (PV, objets, or, XP, conditions, sorts, capacités) passe par un outil.
+- Quand le joueur utilise une capacité (Rage, Second souffle…), appelle utiliser_capacite AVANT de raconter. \
+Si son message indique que le moteur l'a déjà appliquée, ne la rappelle pas.
+- Les EFFETS ACTIFS de la fiche (Rage, résistances, bonus) sont appliqués automatiquement par le moteur : \
+ne divise pas toi-même les dégâts, mais précise toujours le type de dégâts (type_degats) des attaques et \
+pièges, et mentionne l'effet dans le récit quand il joue (« ta rage encaisse le coup »).
 - Si un outil renvoie une erreur, corrige l'appel ou adapte le récit.
 - COMBAT : appelle commencer_combat, puis respecte l'ordre d'initiative. Au tour du joueur, attends son \
 action (sauf s'il l'a déjà décrite). Ensuite fais agir chaque ennemi actif avec attaque_ennemi (ou une \
@@ -229,10 +241,17 @@ function messageAssistant(msg) {
  * Modifie `partie` directement : l'appelant travaille sur une copie et ne la garde qu'en cas de succès.
  * Un texteJoueur vide sert au tout premier tour (introduction de l'aventure).
  */
-export async function jouerTour(partie, texteJoueur, appeler) {
+export async function jouerTour(partie, texteJoueur, appeler, actionDirecte = null) {
   const sc = SCENARIOS[partie.scenario] ?? SCENARIOS.libre;
-  const messageJoueur = texteJoueur || `[Début de la partie] ${sc.intro}`;
+  let messageJoueur = texteJoueur || `[Début de la partie] ${sc.intro}`;
   const moteur = new Moteur(partie);
+  if (actionDirecte) {
+    // Action cliquée dans la fiche : le moteur l'applique tout de suite, l'IA n'a plus qu'à la raconter.
+    const resultat = moteur.executer(actionDirecte.outil, actionDirecte.args);
+    if (resultat.erreur) throw new ErreurAction(resultat.erreur);
+    messageJoueur += `\n[Le moteur a déjà appliqué ${actionDirecte.outil} : ${JSON.stringify(resultat)}. `
+      + "Ne rappelle pas cet outil pour cette action ; raconte-la puis poursuis la scène.]";
+  }
   const messages = [
     { role: "system", content: construireSysteme(partie) },
     ...partie.messages,

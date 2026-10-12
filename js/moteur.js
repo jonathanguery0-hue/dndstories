@@ -8,7 +8,7 @@ import * as des from "./des.js";
 import * as srd from "./srd.js";
 import {
   bonusAttaqueArme, bonusAttaqueSort, bonusCompetence, bonusDegatsArme, bonusSauvegarde, ca, ddSort,
-  gagnerNiveau, mod, signe, sortsConnus,
+  enRage, gagnerNiveau, mod, resistances, signe, sortsConnus,
 } from "./personnage.js";
 
 /** Action refusée par les règles ; le message est renvoyé à l'IA pour qu'elle corrige. */
@@ -42,6 +42,10 @@ const mortRemise = () => ({ succes: 0, echecs: 0, stable: false, mort: false });
 /** Coup critique : double le nombre de dés (2d6+3 -> 4d6+3). */
 export const doublerDes = (f) => multiplierDes(f, 2);
 export const multiplierDes = (f, n) => f.replace(/(\d*)d(\d+)/g, (_, a, b) => `${Number(a || 1) * n}d${b}`);
+
+function retirerRage(p) {
+  p.conditions = p.conditions.filter((c) => !/\brage\b/i.test(c));
+}
 
 export function etatJoueur(p) {
   if (p.mort.mort) return "mort";
@@ -143,8 +147,17 @@ export class Moteur {
     }
     p.pv = 0;
     p.mort = mortRemise();
-    p.conditions = p.conditions.filter((c) => c !== "Rage");
+    retirerRage(p);
     return `${p.nom} tombe à 0 PV et perd connaissance ! (jets contre la mort nécessaires)`;
+  }
+
+  /** Applique les résistances du joueur à des dégâts d'un type donné. */
+  resister(degats, typeDegats) {
+    const type = minus(typeDegats);
+    if (type && resistances(this.perso).includes(type)) {
+      return { degats: Math.floor(degats / 2), note: ` (résistance ${type} : dégâts divisés par 2)` };
+    }
+    return { degats, note: "" };
   }
 
   soignerJoueur(soin) {
@@ -201,7 +214,7 @@ export class Moteur {
         bonus = mod(p.caracs[carac]);
         libelle = srd.NOMS_CARACS[carac];
       }
-      if (carac === "FOR" && p.conditions.includes("Rage")) avantage = true;
+      if (carac === "FOR" && enRage(p)) avantage = true;
     } else {
       throw new ErreurAction("type doit être 'competence', 'caracteristique' ou 'sauvegarde'");
     }
@@ -239,7 +252,7 @@ export class Moteur {
       const nom = groupe.nom || nomModele || "Ennemi";
       const nombre = Math.max(1, Math.min(Number(groupe.nombre) || 1, 12));
       const base = { ...(cleModele ? srd.MONSTRES[cleModele] : {}) };
-      for (const cle of ["ca", "pv", "attaque", "degats", "arme", "sauvegarde", "dex", "xp"]) {
+      for (const cle of ["ca", "pv", "attaque", "degats", "type_degats", "arme", "sauvegarde", "dex", "xp"]) {
         if (groupe[cle] !== undefined && groupe[cle] !== null && groupe[cle] !== "") base[cle] = groupe[cle];
       }
       if (["ca", "pv", "attaque", "degats"].some((c) => base[c] === undefined)) {
@@ -252,7 +265,7 @@ export class Moteur {
         const pv = Math.max(Number.isFinite(pvBrut) ? Math.round(pvBrut) : 1, 1);
         liste.push({
           nom, ca: Number(base.ca), pv, pv_max: pv, attaque: Number(base.attaque), degats: String(base.degats),
-          arme: base.arme ?? "attaque", sauvegarde: Number(base.sauvegarde ?? 0), dex: Number(base.dex ?? 0),
+          arme: base.arme ?? "attaque", type_degats: minus(base.type_degats) || null, sauvegarde: Number(base.sauvegarde ?? 0), dex: Number(base.dex ?? 0),
           xp: Number(base.xp ?? 10), etat: "actif",
         });
       }
@@ -274,7 +287,7 @@ export class Moteur {
     this.evt("⚔️ Combat ! Initiative : " + ordre.map((o) => `${o.nom} ${o.init}`).join(", "), "systeme");
     return {
       ordre_initiative: ordre,
-      ennemis: liste.map(({ id, ca: c, pv, attaque, degats, arme }) => ({ id, ca: c, pv, attaque, degats, arme })),
+      ennemis: liste.map(({ id, ca: c, pv, attaque, degats, type_degats, arme }) => ({ id, ca: c, pv, attaque, degats, type_degats, arme })),
       surprise: surprise || null,
     };
   }
@@ -304,7 +317,7 @@ export class Moteur {
     }
     let formule = a.degats;
     let bonusDeg = bonusDegatsArme(p, a);
-    if (p.conditions.includes("Rage") && !a.distance) bonusDeg += 2;
+    if (enRage(p) && !a.distance) bonusDeg += 2;
     if (degats_bonus) formule += "+" + String(degats_bonus).replace(/^\+/, "");
     if (critique) {
       formule = doublerDes(formule);
@@ -453,7 +466,7 @@ export class Moteur {
     return res;
   }
 
-  attaque_ennemi({ ennemi, cible = "joueur", avantage = false, desavantage = false }) {
+  attaque_ennemi({ ennemi, cible = "joueur", avantage = false, desavantage = false, type_degats = "" }) {
     const e = this.ennemi(ennemi);
     if (e.etat === "vaincu") throw new ErreurAction(`${e.id} est vaincu et ne peut plus attaquer.`);
     if (e.etat === "endormi") throw new ErreurAction(`${e.id} est endormi magiquement et ne peut pas agir.`);
@@ -474,14 +487,15 @@ export class Moteur {
       return res;
     }
     const rd = roll(critique ? doublerDes(e.degats) : e.degats);
+    const typeDegats = minus(type_degats) || e.type_degats || "";
     let degats = Math.max(rd.total, 1);
     let note = "";
-    if (visJoueur && p.conditions.includes("Rage")) {
-      degats = Math.floor(degats / 2);
-      note = " (réduits de moitié par la Rage)";
-    }
-    txt += ` → ${critique ? "CRITIQUE ! " : "Touché ! "}${rd.detail} = ${degats} dégâts${note}.`;
+    if (visJoueur) ({ degats, note } = this.resister(degats, typeDegats));
+    const calcul = note ? `${rd.detail} = ${Math.max(rd.total, 1)} → ${degats}` : `${rd.detail} = ${degats}`;
+    txt += ` → ${critique ? "CRITIQUE ! " : "Touché ! "}${calcul} dégâts${typeDegats ? ` ${typeDegats}` : ""}${note}.`;
     res.degats = degats;
+    res.type_degats = typeDegats || null;
+    if (note) res.resistance = true;
     if (visJoueur) {
       txt += " " + this.blesserJoueur(degats, critique);
       res.pv_joueur = p.pv;
@@ -519,21 +533,26 @@ export class Moteur {
       .reduce((s, e) => s + e.xp, 0);
     this.partie.combat = null;
     const p = this.perso;
-    p.conditions = p.conditions.filter((c) => c !== "Rage");
+    retirerRage(p);
     this.evt(`Fin du combat (${issue}). +${xp} XP`, "systeme");
     const res = { issue, xp_gagne: xp };
     return xp ? { ...res, ...this.gagnerXp(xp) } : res;
   }
 
-  modifier_pv_joueur({ type, formule, raison = "" }) {
+  modifier_pv_joueur({ type, formule, raison = "", type_degats = "" }) {
     const rd = roll(String(formule));
-    const montant = Math.max(rd.total, 0);
+    let montant = Math.max(rd.total, 0);
     let etat;
+    let note = "";
     if (type === "soin") etat = this.soignerJoueur(montant);
-    else if (type === "degats") etat = this.blesserJoueur(montant);
-    else throw new ErreurAction("type doit être 'degats' ou 'soin'");
+    else if (type === "degats") {
+      ({ degats: montant, note } = this.resister(montant, type_degats));
+      etat = this.blesserJoueur(montant);
+    } else throw new ErreurAction("type doit être 'degats' ou 'soin'");
     const libelle = raison || (type === "soin" ? "Soin" : "Dégâts");
-    this.evt(`${libelle} : ${rd.detail} = ${montant} ${type === "soin" ? "PV soignés" : "dégâts"}. ${etat}`);
+    const unite = type === "soin" ? "PV soignés" : `dégâts${type_degats ? ` ${minus(type_degats)}` : ""}`;
+    const calcul = note ? `${rd.detail} = ${rd.total} → ${montant}` : `${rd.detail} = ${montant}`;
+    this.evt(`${libelle} : ${calcul} ${unite}${note}. ${etat}`);
     const p = this.perso;
     return { montant, pv: p.pv, pv_max: p.pv_max, etat_joueur: etatJoueur(p) };
   }
@@ -590,7 +609,7 @@ export class Moteur {
       this.evt(`Second souffle : ${rd.detail} = ${rd.total} PV. ${etat}`);
       res.soin = rd.total;
     } else if (cap.effet === "rage") {
-      if (!p.conditions.includes("Rage")) p.conditions.push("Rage");
+      if (!enRage(p)) p.conditions.push("Rage");
       this.evt(`🔥 ${p.nom} entre en Rage !`);
     } else {
       this.evt(`${p.nom} utilise ${cap.nom}.`);
@@ -677,7 +696,7 @@ export class Moteur {
       for (const c of p.capacites) if (c.utilisations_max != null) c.utilisations = c.utilisations_max;
       p.endurance_utilisee = false;
       p.restauration_utilisee = false;
-      p.conditions = p.conditions.filter((c) => c !== "Rage");
+      retirerRage(p);
       this.evt(`🌙 Repos long : PV, sorts et capacités restaurés (${p.pv}/${p.pv_max} PV)`, "systeme");
     } else {
       throw new ErreurAction("type doit être 'court' ou 'long'");
@@ -688,6 +707,17 @@ export class Moteur {
   modifier_condition({ action, condition }) {
     const p = this.perso;
     condition = String(condition ?? "").trim();
+    if (/\brage\b/i.test(condition)) {
+      if (action === "ajouter" && !enRage(p)) {
+        throw new ErreurAction("Pour entrer en Rage, utilise utiliser_capacite avec nom 'Rage' "
+          + "(cela décompte une utilisation et active ses effets).");
+      }
+      if (action === "retirer") {
+        retirerRage(p);
+        this.evt("➖ La Rage prend fin.", "systeme");
+        return { conditions: p.conditions };
+      }
+    }
     if (action === "ajouter") {
       if (condition && !p.conditions.includes(condition)) p.conditions.push(condition);
     } else if (action === "retirer") {

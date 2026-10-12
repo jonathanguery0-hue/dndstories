@@ -36,9 +36,13 @@ function markdown(texte) {
     .join("");
 }
 
+const grandEcran = () => window.matchMedia("(min-width: 901px)").matches;
+
 function afficherEcran(nom) {
   $$(".ecran").forEach((e) => e.classList.add("cache"));
   $(`#ecran-${nom}`).classList.remove("cache");
+  document.body.classList.toggle("mode-jeu", nom === "jeu");
+  fermerPanneau();
   window.scrollTo(0, 0);
 }
 
@@ -447,7 +451,7 @@ function ouvrirPartie(id) {
   rendreHistoire();
   rendrePanneau();
   if (!PARTIE.affichage.length) envoyer("");  // introduction de l'aventure
-  else $("#action").focus();
+  else if (grandEcran()) $("#action").focus();
 }
 
 function rendreEntree(entree) {
@@ -456,11 +460,13 @@ function rendreEntree(entree) {
   return `<div class="${entree.type === "systeme" ? "systeme" : "de"}">${echapper(entree.texte)}</div>`;
 }
 
-function rendreHistoire() {
+function rendreHistoire({ debutDernierTour = false } = {}) {
   const h = $("#histoire");
   h.innerHTML = PARTIE.affichage.map(rendreEntree).join("")
     || '<p class="discret"><i>L\'aventure va commencer…</i></p>';
-  h.scrollTop = h.scrollHeight;
+  // Après un tour, on se place au début de la nouvelle réponse pour la lire depuis le début.
+  const repere = debutDernierTour ? [...h.querySelectorAll(".joueur")].at(-1) : null;
+  h.scrollTop = repere ? repere.offsetTop - 8 : h.scrollHeight;
 }
 
 function classeJauge(v, max) {
@@ -499,7 +505,10 @@ function rendrePanneau() {
       <li><span>${echapper(a.nom)}</span><span class="valeur">${signe(a.bonus)} · ${echapper(a.degats)}</span></li>`).join("")}</ul>
     <h3>Capacités</h3>
     <ul class="liste-simple">${p.capacites.map((c) => `
-      <li class="bloc"><b>${echapper(c.nom)}</b>${c.utilisations_max ? ` <span class="pastille">${c.utilisations}/${c.utilisations_max}</span>` : ""}
+      <li class="bloc"><div class="capacite-entete"><span><b>${echapper(c.nom)}</b>${c.utilisations_max
+        ? ` <span class="pastille">${c.utilisations}/${c.utilisations_max}</span>` : ""}</span>
+        ${c.utilisations_max ? `<button class="bouton petit" data-capacite="${echapper(c.nom)}"
+          ${c.utilisations > 0 && p.pv > 0 ? "" : "disabled"}>Utiliser</button>` : ""}</div>
         <span class="desc">${echapper(c.description)}</span></li>`).join("")}
       ${p.traits.map((t) => `<li class="bloc"><span class="desc">${echapper(t)}</span></li>`).join("")}</ul>
     <h3>Sauvegardes</h3>
@@ -535,6 +544,8 @@ function rendrePanneau() {
     ? `<ul class="liste-simple">${PARTIE.journal.map((n) => `<li class="bloc">${echapper(n)}</li>`).join("")}</ul>`
     : '<p class="discret">Le maître du jeu notera ici les personnages, indices et quêtes importants.</p>';
 
+  rendreStatutMobile(p);
+
   const combat = $("#combat");
   if (PARTIE.combat) {
     combat.classList.remove("cache");
@@ -556,9 +567,39 @@ $$(".onglets button").forEach((b) => b.addEventListener("click", () => {
   $$(".onglet").forEach((o) => o.classList.toggle("cache", o.id !== `onglet-${b.dataset.onglet}`));
 }));
 
-$("#bascule-panneau").addEventListener("click", () => $("#panneau").classList.toggle("ouvert"));
+function rendreStatutMobile(p) {
+  const ennemis = PARTIE.combat?.ennemis.filter((e) => e.etat !== "vaincu") ?? [];
+  $("#statut-mobile").innerHTML = `
+    <span>PV <b>${p.pv}/${p.pv_max}</b>
+      <span class="jauge ${classeJauge(p.pv, p.pv_max)}"><span style="width:${Math.round((p.pv / p.pv_max) * 100)}%"></span></span></span>
+    <span>CA <b>${p.ca}</b></span>
+    ${p.conditions.map((c) => `<span class="pastille">${echapper(c)}</span>`).join("")}
+    ${ennemis.length ? `<span class="ennemis-mini">⚔️ ${ennemis.map((e) => `${echapper(e.id)} ${e.pv}/${e.pv_max}`).join(" · ")}</span>` : ""}`;
+}
 
-async function envoyer(texte) {
+function ouvrirPanneau() {
+  $("#panneau").classList.add("ouvert");
+  $("#voile").classList.add("visible");
+}
+
+function fermerPanneau() {
+  $("#panneau").classList.remove("ouvert");
+  $("#voile").classList.remove("visible");
+}
+
+$("#bascule-panneau").addEventListener("click", ouvrirPanneau);
+$("#fermer-panneau").addEventListener("click", fermerPanneau);
+$("#voile").addEventListener("click", fermerPanneau);
+document.addEventListener("keydown", (e) => { if (e.key === "Escape") fermerPanneau(); });
+
+$("#onglet-fiche").addEventListener("click", (e) => {
+  const b = e.target.closest("[data-capacite]");
+  if (!b) return;
+  fermerPanneau();
+  envoyer(`J'utilise ma capacité « ${b.dataset.capacite} » !`, { outil: "utiliser_capacite", args: { nom: b.dataset.capacite } });
+});
+
+async function envoyer(texte, actionDirecte = null) {
   if (enAttente) return;
   enAttente = true;
   $("#envoyer").disabled = true;
@@ -568,20 +609,21 @@ async function envoyer(texte) {
   if (texte) {
     h.insertAdjacentHTML("beforeend", rendreEntree({ type: "joueur", texte }));
     h.scrollTop = h.scrollHeight;
+    $$("[data-capacite]").forEach((b) => { b.disabled = true; });
   }
   try {
     if (!stockage.estConfigure(CONFIG)) throw new Error("Aucune clé API configurée. Ouvre les Réglages (⚙️) pour l'ajouter.");
     const appeler = clientOpenAI(CONFIG);
     // On joue le tour sur une copie : en cas d'erreur, la partie reste intacte et on peut réessayer.
     const copie = structuredClone(PARTIE);
-    await jouerTour(copie, texte.slice(0, 2000), appeler);
+    await jouerTour(copie, texte.slice(0, 2000), appeler, actionDirecte);
     try { await condenserMemoire(copie, appeler); } catch { /* on réessaiera au prochain tour */ }
     PARTIE = copie;
-    $("#action").value = "";
-    rendreHistoire();
-    rendrePanneau();
+    if (!actionDirecte) $("#action").value = "";
+    rendreHistoire({ debutDernierTour: true });
   } catch (err) {
-    $("#erreur-jeu").textContent = err.message + (texte ? " Ton action est restée dans la zone de texte." : "");
+    const garde = texte && !actionDirecte ? " Ton action est restée dans la zone de texte." : "";
+    $("#erreur-jeu").textContent = err.message + garde;
     if (texte) h.lastElementChild?.remove();
     if (!texte) {
       $("#erreur-jeu").insertAdjacentHTML("beforeend",
@@ -597,7 +639,8 @@ async function envoyer(texte) {
     enAttente = false;
     $("#envoyer").disabled = false;
     $("#reflexion").classList.add("cachee");
-    $("#action").focus();
+    rendrePanneau();
+    if (grandEcran()) $("#action").focus();
   }
 }
 
@@ -624,3 +667,24 @@ $("#suggestions").addEventListener("click", (e) => {
 const idDepart = location.hash.slice(1);
 chargerAccueil();
 if (/^[0-9a-f]{12}$/.test(idDepart)) ouvrirPartie(idDepart);
+
+// Installation comme application (écran d'accueil du téléphone, bureau de l'ordinateur).
+if ("serviceWorker" in navigator && location.protocol === "https:") {
+  navigator.serviceWorker.register("sw.js").catch(() => { /* le jeu marche aussi sans */ });
+}
+
+let invitationInstallation = null;
+window.addEventListener("beforeinstallprompt", (e) => {
+  e.preventDefault();
+  invitationInstallation = e;
+  $("#installer").classList.remove("cache");
+});
+$("#installer").addEventListener("click", async () => {
+  if (!invitationInstallation) return;
+  invitationInstallation.prompt();
+  await invitationInstallation.userChoice;
+  invitationInstallation = null;
+  $("#installer").classList.add("cache");
+});
+const dejaInstalle = window.matchMedia("(display-mode: standalone)").matches || navigator.standalone;
+if (/iPhone|iPad|iPod/.test(navigator.userAgent) && !dejaInstalle) $("#aide-ios").classList.remove("cache");
