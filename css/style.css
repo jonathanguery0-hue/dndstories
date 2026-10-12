@@ -253,6 +253,10 @@ dialog {
 dialog::backdrop { background: rgba(0, 0, 0, .6); }
 .aide { font-size: .88rem; color: var(--discret); margin: -.4rem 0 .9rem; }
 details { margin-bottom: 1rem; }
+.choix-mode { display: flex; flex-direction: column; gap: .3rem; margin-bottom: 1rem; }
+.choix-mode label { display: flex; gap: .5rem; align-items: center; margin: 0; cursor: pointer; }
+.choix-mode input { accent-color: var(--or); }
+.aide.succes { color: var(--vert); }
 summary { cursor: pointer; color: var(--discret); }
 
 @media (max-width: 900px) {

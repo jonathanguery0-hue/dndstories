@@ -161,32 +161,77 @@ export function construireSysteme(partie) {
 /** Problème de communication avec le service d'IA, avec un message compréhensible. */
 export class ErreurIA extends Error {}
 
+async function requeteIA(url, entetes, corps, traduireErreur) {
+  let reponse;
+  try {
+    reponse = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...entetes },
+      body: JSON.stringify(corps),
+    });
+  } catch {
+    throw new ErreurIA("Impossible de joindre le service d'IA. Vérifie ta connexion internet.");
+  }
+  let donnees = null;
+  try { donnees = await reponse.json(); } catch { /* corps vide */ }
+  if (!reponse.ok) throw new ErreurIA(traduireErreur(reponse.status, donnees));
+  const msg = donnees?.choices?.[0]?.message;
+  if (!msg) throw new ErreurIA("Réponse inattendue du service d'IA.");
+  return msg;
+}
+
 /**
- * Crée la fonction qui interroge un service compatible OpenAI (Chat Completions).
+ * Crée la fonction qui interroge un service compatible OpenAI (Chat Completions) avec la clé du joueur.
  * Renvoie une fonction (messages, outils) => message de l'assistant.
  */
 export function clientOpenAI({ cle, modele, adresse }) {
   const base = (adresse || "https://api.openai.com/v1").replace(/\/+$/, "");
-  return async (messages, outils) => {
-    const corps = { model: modele, messages };
-    if (outils) corps.tools = outils;
-    let reponse;
-    try {
-      reponse = await fetch(`${base}/chat/completions`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json", ...(cle ? { Authorization: `Bearer ${cle}` } : {}) },
-        body: JSON.stringify(corps),
-      });
-    } catch {
-      throw new ErreurIA("Impossible de joindre le service d'IA. Vérifie ta connexion internet (ou ton serveur local).");
+  return (messages, outils) => requeteIA(
+    `${base}/chat/completions`,
+    cle ? { Authorization: `Bearer ${cle}` } : {},
+    { model: modele, messages, ...(outils ? { tools: outils } : {}) },
+    (statut, donnees) => messageErreur(statut, donnees, modele),
+  );
+}
+
+/** Même chose en passant par le serveur relais de l'organisateur, avec un code d'accès. */
+export function clientServeur({ url, code }) {
+  const base = url.replace(/\/+$/, "");
+  return (messages, outils) => requeteIA(
+    `${base}/v1/chat/completions`,
+    { "X-Code-Acces": code },
+    { messages, ...(outils ? { tools: outils } : {}) },
+    messageErreurServeur,
+  );
+}
+
+/** Vérifie un code d'accès auprès du serveur relais. Renvoie { joueur, modele }. */
+export async function verifierCode({ url, code }) {
+  let reponse;
+  try {
+    reponse = await fetch(`${url.replace(/\/+$/, "")}/verifier`, { headers: { "X-Code-Acces": code } });
+  } catch {
+    throw new ErreurIA("Impossible de joindre le serveur du jeu. Vérifie ta connexion internet.");
+  }
+  let donnees = null;
+  try { donnees = await reponse.json(); } catch { /* corps vide */ }
+  if (!reponse.ok) throw new ErreurIA(messageErreurServeur(reponse.status, donnees));
+  return donnees;
+}
+
+export function messageErreurServeur(statut, donnees) {
+  const err = donnees?.error ?? {};
+  if (err.code === "code_invalide" || statut === 401) {
+    return "Code d'accès refusé. Vérifie-le dans les Réglages (⚙️) ou redemande-le à l'organisateur.";
+  }
+  if (statut === 429) {
+    if (err.code === "insufficient_quota" || /quota/i.test(err.message ?? "")) {
+      return "Le crédit OpenAI de l'organisateur est épuisé : préviens-le pour qu'il en rajoute.";
     }
-    let donnees = null;
-    try { donnees = await reponse.json(); } catch { /* corps vide */ }
-    if (!reponse.ok) throw new ErreurIA(messageErreur(reponse.status, donnees, modele));
-    const msg = donnees?.choices?.[0]?.message;
-    if (!msg) throw new ErreurIA("Réponse inattendue du service d'IA.");
-    return msg;
-  };
+    return "Trop de requêtes d'un coup : attends quelques secondes et réessaie.";
+  }
+  if (err.message) return `Serveur du jeu : ${String(err.message).slice(0, 300)}`;
+  return `Erreur du serveur du jeu (${statut}).`;
 }
 
 export async function listerModeles({ cle, adresse }) {

@@ -21,23 +21,28 @@ Rien à installer : ça marche sur ordinateur, tablette et téléphone.
 
 ---
 
-## 🔑 Ta clé OpenAI (une seule fois)
+## 🎟️ Code d'accès ou clé OpenAI
 
-L'IA maître du jeu utilise l'API d'OpenAI. Attention : l'abonnement ChatGPT ne suffit pas, il faut
-une **clé API**.
+**Tu as été invité ?** Ouvre simplement le lien d'invitation reçu (il contient ton code), ou tape
+ton code dans **⚙️ Réglages → Code d'accès**. C'est tout !
+
+**Tu organises ?** Le serveur relais garde ta clé OpenAI et donne un code à chacun de tes amis :
+suis le guide [`serveur/README.md`](serveur/README.md).
+
+<details>
+<summary>Jouer avec ta propre clé OpenAI</summary>
+
+L'abonnement ChatGPT ne suffit pas, il faut une **clé API** :
 
 1. Va sur **https://platform.openai.com** et connecte-toi.
 2. Dans **Settings → Billing**, ajoute un peu de crédit (5 $ suffisent pour beaucoup de parties).
 3. Dans **API keys**, clique sur *Create new secret key* et copie la clé (elle commence par `sk-`).
-4. Dans le jeu, clique sur **⚙️** en haut à droite, colle la clé, puis **Enregistrer**.
+4. Dans le jeu, **⚙️ Réglages → Ma propre clé OpenAI**, colle la clé, puis **Enregistrer**.
 
-🔒 La clé est enregistrée **uniquement dans ton navigateur** et n'est envoyée qu'à OpenAI. Ne la
-saisis pas sur un ordinateur public. Conseil : sur platform.openai.com, tu peux fixer une limite de
-dépense mensuelle (*Limits*).
-
-**Choisir le modèle d'IA** : dans les Réglages, le bouton *Voir la liste* affiche les modèles
-disponibles sur ton compte. Un modèle « mini » coûte peu (quelques centimes par session) ; un modèle
-plus grand raconte mieux mais coûte plus cher.
+🔒 La clé est enregistrée **uniquement dans ton navigateur** et n'est envoyée qu'à OpenAI. Le bouton
+*Voir la liste* affiche les modèles disponibles ; un modèle « mini » coûte peu (quelques centimes
+par session).
+</details>
 
 ---
 
@@ -65,6 +70,8 @@ sauvegarde** sur l'autre appareil. Vider les données du navigateur efface les p
 
 | Message | Solution |
 |---|---|
+| « Code d'accès refusé » | Vérifie le code dans ⚙️ (bouton *Vérifier*) ou redemande-le à l'organisateur. |
+| « Le crédit OpenAI de l'organisateur est épuisé » | Préviens l'organisateur. |
 | « La clé API est refusée » | Vérifie la clé dans ⚙️ (copie-colle sans espace). |
 | « Le compte OpenAI n'a plus de crédit » | Ajoute du crédit dans *Billing* sur platform.openai.com. |
 | « Le modèle … n'est pas disponible » | Dans ⚙️, clique sur *Voir la liste* et choisis un autre modèle. |
@@ -85,6 +92,7 @@ sauvegarde** sur l'autre appareil. Vider les données du navigateur efface les p
   - `personnage.js`, `srd.js`, `des.js` : la fiche, les données de règles et les dés
   - `scenarios.js` : les aventures (ajoute la tienne !)
   - `stockage.js` : sauvegardes et réglages dans le navigateur
+  - `serveur.js` : adresse du serveur relais ; le relais lui-même est dans `serveur/worker.js`
   - `app.js` : l'interface ; `sw.js` + `manifest.webmanifest` : installation comme application
 - **Tester en local** : `python3 -m http.server` à la racine puis ouvrir http://localhost:8000
 - **Tests automatiques** : `npm test` (Node.js 20 ou plus)

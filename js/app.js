@@ -3,7 +3,8 @@ import * as srd from "./srd.js";
 import { SCENARIOS } from "./scenarios.js";
 import { creerPersonnage, vueFiche } from "./personnage.js";
 import { nouvellePartie } from "./moteur.js";
-import { clientOpenAI, condenserMemoire, jouerTour, listerModeles } from "./mj.js";
+import { clientOpenAI, clientServeur, condenserMemoire, jouerTour, listerModeles, verifierCode } from "./mj.js";
+import { SERVEUR_URL } from "./serveur.js";
 import * as stockage from "./stockage.js";
 
 // ------------------------------------------------------------------ utilitaires
@@ -68,6 +69,23 @@ const REGLES = {
 };
 let CONFIG = stockage.chargerConfig();
 
+// Lien d'invitation : https://…/#code=lune-bleue-17 enregistre le code d'accès automatiquement.
+function appliquerInvitation() {
+  const invitation = location.hash.match(/^#code=([^&]+)/);
+  if (!invitation || !SERVEUR_URL) return false;
+  try {
+    CONFIG = stockage.enregistrerConfig({ mode: "serveur", code: decodeURIComponent(invitation[1]) });
+  } catch { /* navigateur sans stockage : le joueur saisira son code */ }
+  history.replaceState(null, "", location.pathname);
+  return true;
+}
+appliquerInvitation();
+window.addEventListener("hashchange", () => { if (appliquerInvitation()) chargerAccueil(); });
+
+function creerClient(cfg) {
+  return cfg.mode === "serveur" ? clientServeur({ url: SERVEUR_URL, code: cfg.code }) : clientOpenAI(cfg);
+}
+
 // ------------------------------------------------------------------ accueil
 
 function chargerAccueil() {
@@ -75,6 +93,7 @@ function chargerAccueil() {
   history.replaceState(null, "", location.pathname);
   CONFIG = stockage.chargerConfig();
   $("#alerte-config").classList.toggle("cachee", stockage.estConfigure(CONFIG));
+  $("#alerte-quoi").textContent = CONFIG.mode === "serveur" ? "code d'accès" : "clé API OpenAI";
   $("#erreur-accueil").textContent = "";
   const parties = stockage.listerParties();
   const liste = $("#liste-parties");
@@ -142,23 +161,60 @@ $("#nouvelle-partie").addEventListener("click", () => {
 
 // ------------------------------------------------------------------ réglages
 
+function modeChoisi() {
+  return $('input[name="mode"]:checked')?.value ?? "cle";
+}
+
+function afficherMode() {
+  const mode = modeChoisi();
+  $("#section-serveur").classList.toggle("cache", mode !== "serveur");
+  $("#section-cle").classList.toggle("cache", mode !== "cle");
+}
+
 function ouvrirReglages() {
+  $("#choix-mode").classList.toggle("cache", !SERVEUR_URL);
+  $$('input[name="mode"]').forEach((r) => { r.checked = r.value === CONFIG.mode; });
+  $("#code-acces").value = CONFIG.code;
+  $("#etat-code").textContent = "Demande ton code à la personne qui t'a invité.";
+  $("#etat-code").classList.remove("succes");
   $("#cle-api").value = "";
   $("#cle-actuelle").textContent = CONFIG.cle
     ? `Clé actuelle : ${stockage.masquer(CONFIG.cle)} (laisse vide pour la garder)` : "";
   $("#modele").value = CONFIG.modele;
   $("#base-url").value = CONFIG.adresse;
   $("#erreur-reglages").textContent = "";
+  afficherMode();
   $("#reglages").showModal();
 }
 
 function valeursReglages() {
   return {
+    mode: SERVEUR_URL ? modeChoisi() : "cle",
+    code: $("#code-acces").value.trim(),
     cle: $("#cle-api").value.trim() || CONFIG.cle,
     modele: $("#modele").value.trim() || CONFIG.modele,
     adresse: $("#base-url").value.trim(),
   };
 }
+
+$$('input[name="mode"]').forEach((r) => r.addEventListener("change", afficherMode));
+
+$("#verifier-code").addEventListener("click", async () => {
+  const bouton = $("#verifier-code");
+  const code = $("#code-acces").value.trim();
+  $("#erreur-reglages").textContent = "";
+  if (!code) { $("#erreur-reglages").textContent = "Entre d'abord ton code."; return; }
+  bouton.disabled = true;
+  try {
+    const { joueur } = await verifierCode({ url: SERVEUR_URL, code });
+    $("#etat-code").textContent = `✅ Code valide — bienvenue, ${joueur} !`;
+    $("#etat-code").classList.add("succes");
+  } catch (err) {
+    $("#erreur-reglages").textContent = err.message;
+  } finally {
+    bouton.disabled = false;
+  }
+});
 
 $("#ouvrir-reglages").addEventListener("click", ouvrirReglages);
 $("#lien-reglages").addEventListener("click", (e) => { e.preventDefault(); ouvrirReglages(); });
@@ -169,6 +225,7 @@ $("#enregistrer-reglages").addEventListener("click", (e) => {
     CONFIG = stockage.enregistrerConfig(valeursReglages());
     $("#reglages").close();
     $("#alerte-config").classList.toggle("cachee", stockage.estConfigure(CONFIG));
+    $("#alerte-quoi").textContent = CONFIG.mode === "serveur" ? "code d'accès" : "clé API OpenAI";
   } catch (err) {
     $("#erreur-reglages").textContent = err.message;
   }
@@ -612,8 +669,11 @@ async function envoyer(texte, actionDirecte = null) {
     $$("[data-capacite]").forEach((b) => { b.disabled = true; });
   }
   try {
-    if (!stockage.estConfigure(CONFIG)) throw new Error("Aucune clé API configurée. Ouvre les Réglages (⚙️) pour l'ajouter.");
-    const appeler = clientOpenAI(CONFIG);
+    if (!stockage.estConfigure(CONFIG)) {
+      throw new Error(CONFIG.mode === "serveur" ? "Aucun code d'accès. Ouvre les Réglages (⚙️) pour l'ajouter."
+        : "Aucune clé API configurée. Ouvre les Réglages (⚙️) pour l'ajouter.");
+    }
+    const appeler = creerClient(CONFIG);
     // On joue le tour sur une copie : en cas d'erreur, la partie reste intacte et on peut réessayer.
     const copie = structuredClone(PARTIE);
     await jouerTour(copie, texte.slice(0, 2000), appeler, actionDirecte);

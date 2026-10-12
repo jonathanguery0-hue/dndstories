@@ -29,7 +29,7 @@
     <p>Un jeu de rôle textuel où une IA est ton maître du jeu. Crée ton héros, et vis une aventure
       où chaque choix compte. Les dés, eux, ne mentent jamais.</p>
     <div id="alerte-config" class="alerte cachee">
-      Avant de jouer, ajoute ta clé API OpenAI dans les
+      Avant de jouer, entre ton <span id="alerte-quoi">code d'accès</span> dans les
       <a href="#" id="lien-reglages">Réglages ⚙️</a>.
     </div>
     <button class="bouton principal" id="nouvelle-partie">✨ Nouvelle aventure</button>
@@ -114,27 +114,44 @@
 <dialog id="reglages">
   <form method="dialog" id="formulaire-reglages">
     <h2>Réglages</h2>
-    <label>Clé API OpenAI
-      <input type="password" id="cle-api" autocomplete="off" placeholder="sk-…">
-      <small id="cle-actuelle" class="discret"></small>
-    </label>
-    <p class="aide">Crée une clé sur <b>platform.openai.com → API keys</b>. Elle est enregistrée uniquement dans
-      ce navigateur et n'est envoyée qu'à OpenAI. N'utilise pas d'ordinateur public.</p>
-    <label>Modèle d'IA
-      <span class="ligne">
-        <input type="text" id="modele" list="liste-modeles">
-        <button type="button" class="bouton" id="charger-modeles">Voir la liste</button>
-      </span>
-      <datalist id="liste-modeles"></datalist>
-    </label>
-    <p class="aide">Un modèle « mini » coûte peu et suffit pour jouer ; un modèle plus grand raconte mieux.</p>
-    <details>
-      <summary>Avancé : serveur compatible OpenAI (modèle local)</summary>
-      <label>Adresse du serveur
-        <input type="text" id="base-url" placeholder="ex. http://localhost:11434/v1 pour Ollama">
+    <div class="choix-mode" id="choix-mode">
+      <label><input type="radio" name="mode" value="serveur"> 🎟️ Code d'accès (fourni par l'organisateur)</label>
+      <label><input type="radio" name="mode" value="cle"> 🔑 Ma propre clé OpenAI</label>
+    </div>
+
+    <div id="section-serveur">
+      <label>Code d'accès
+        <span class="ligne">
+          <input type="text" id="code-acces" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="ex. lune-bleue-17">
+          <button type="button" class="bouton" id="verifier-code">Vérifier</button>
+        </span>
       </label>
-      <p class="aide">Laisse vide pour utiliser OpenAI.</p>
-    </details>
+      <p class="aide" id="etat-code">Demande ton code à la personne qui t'a invité.</p>
+    </div>
+
+    <div id="section-cle">
+      <label>Clé API OpenAI
+        <input type="password" id="cle-api" autocomplete="off" placeholder="sk-…">
+        <small id="cle-actuelle" class="discret"></small>
+      </label>
+      <p class="aide">Crée une clé sur <b>platform.openai.com → API keys</b>. Elle est enregistrée uniquement dans
+        ce navigateur et n'est envoyée qu'à OpenAI. N'utilise pas d'ordinateur public.</p>
+      <label>Modèle d'IA
+        <span class="ligne">
+          <input type="text" id="modele" list="liste-modeles">
+          <button type="button" class="bouton" id="charger-modeles">Voir la liste</button>
+        </span>
+        <datalist id="liste-modeles"></datalist>
+      </label>
+      <p class="aide">Un modèle « mini » coûte peu et suffit pour jouer ; un modèle plus grand raconte mieux.</p>
+      <details>
+        <summary>Avancé : serveur compatible OpenAI (modèle local)</summary>
+        <label>Adresse du serveur
+          <input type="text" id="base-url" placeholder="ex. http://localhost:11434/v1 pour Ollama">
+        </label>
+        <p class="aide">Laisse vide pour utiliser OpenAI.</p>
+      </details>
+    </div>
     <p class="erreur" id="erreur-reglages"></p>
     <div class="ligne fin">
       <button class="bouton" value="annuler" formnovalidate>Annuler</button>

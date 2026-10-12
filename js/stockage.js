@@ -1,10 +1,13 @@
 // Enregistrement local (dans le navigateur) des réglages et des parties.
 
+import { SERVEUR_URL } from "./serveur.js";
+
 const PREFIXE = "contes-dragons:";
 const CLE_CONFIG = `${PREFIXE}config`;
 const PREFIXE_PARTIE = `${PREFIXE}partie:`;
 
-export const CONFIG_DEFAUT = { cle: "", modele: "gpt-5-mini", adresse: "" };
+// mode « serveur » : code d'accès vers le relais de l'organisateur ; mode « cle » : clé OpenAI du joueur.
+export const CONFIG_DEFAUT = { mode: SERVEUR_URL ? "serveur" : "cle", code: "", cle: "", modele: "gpt-5-mini", adresse: "" };
 
 /** Erreur d'enregistrement avec un message compréhensible. */
 export class ErreurStockage extends Error {}
@@ -31,7 +34,12 @@ function ecrire(cle, valeur) {
 }
 
 export function chargerConfig() {
-  return { ...CONFIG_DEFAUT, ...(lire(CLE_CONFIG) ?? {}) };
+  const enregistre = lire(CLE_CONFIG) ?? {};
+  const cfg = { ...CONFIG_DEFAUT, ...enregistre };
+  // Réglages d'avant les codes d'accès : on garde la clé déjà saisie.
+  if (!enregistre.mode && enregistre.cle) cfg.mode = "cle";
+  if (!SERVEUR_URL) cfg.mode = "cle";
+  return cfg;
 }
 
 export function enregistrerConfig(modifs) {
@@ -44,7 +52,7 @@ export function enregistrerConfig(modifs) {
 }
 
 // Un serveur local (Ollama…) n'a pas besoin de vraie clé.
-export const estConfigure = (cfg) => Boolean(cfg.cle || cfg.adresse);
+export const estConfigure = (cfg) => (cfg.mode === "serveur" ? Boolean(SERVEUR_URL && cfg.code) : Boolean(cfg.cle || cfg.adresse));
 
 export function masquer(cle) {
   if (!cle) return "";
