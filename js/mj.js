@@ -212,6 +212,17 @@ export function consignesFixes(partie) {
 }
 
 /** Partie qui change à chaque tour (fiche, combat, journal, résumé) : placée juste avant l'action du joueur. */
+const OUTIL_DONJON = outil("salle_suivante",
+  "MODE DONJON : à appeler CHAQUE FOIS que le personnage entre dans une nouvelle salle. Le moteur compte les étages "
+  + "et les salles et renvoie le type de salle à mettre en scène (combat, piège, coffre, calme ou BOSS) : respecte-le.",
+  {
+    etage: { type: "integer", description: "Uniquement au premier appel d'une partie déjà commencée : l'étage actuel selon le récit" },
+    salle: { type: "integer", description: "Uniquement avec etage : la salle (1 à 3) dans laquelle le personnage entre" },
+  }, []);
+
+/** Outils proposés à l'IA pour cette partie (le mode donjon a son outil de progression). */
+export const outilsPour = (partie) => (partie.scenario === "donjon" ? [...OUTILS, OUTIL_DONJON] : OUTILS);
+
 export function etatActuel(partie) {
   const morceaux = ["FICHE DU PERSONNAGE (état actuel, fait foi) :\n" + resumeTexte(partie.personnage)];
   const combat = partie.combat;
@@ -221,6 +232,14 @@ export function etatActuel(partie) {
   }
   if (partie.journal.length) morceaux.push("JOURNAL (faits établis) :\n" + partie.journal.map((n) => `- ${n}`).join("\n"));
   if (partie.resume) morceaux.push("RÉSUMÉ DE L'HISTOIRE JUSQU'ICI :\n" + partie.resume);
+  if (partie.scenario === "donjon") {
+    const d = partie.donjon;
+    morceaux.push(d
+      ? `DONJON (compté par le moteur, fait foi) : étage ${d.etage}, salle ${d.salle} sur 3. Record : étage ${d.record}. `
+        + "Appelle salle_suivante dès que le personnage passe dans une nouvelle salle."
+      : "DONJON : la progression n'est pas encore suivie. Au prochain passage dans une salle, appelle salle_suivante "
+        + "(avec etage et salle si le récit est déjà plus loin que l'étage 1).");
+  }
   return morceaux.join("\n\n");
 }
 
@@ -383,7 +402,7 @@ export async function jouerTour(partie, texteJoueur, appeler, actionDirecte = nu
   const narration = [];
   let termine = false;
   for (let etape = 0; etape < MAX_ETAPES; etape++) {
-    const msg = await appeler(messages, OUTILS);
+    const msg = await appeler(messages, outilsPour(partie));
     compterConsommation(partie, msg.usage, msg.modele);
     if (msg.content && msg.content.trim()) narration.push(msg.content.trim());
     if (!msg.tool_calls?.length) {

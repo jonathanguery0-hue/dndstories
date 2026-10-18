@@ -704,6 +704,10 @@ function rendrePanneau() {
 
   rendreStatutMobile(p);
   rendreBandeauCombat(p);
+  const titre = REGLES.scenarios[PARTIE.scenario]?.titre ?? "";
+  const d = PARTIE.donjon;
+  $("#titre-aventure").textContent = d ? `${titre} · Étage ${d.etage}, salle ${d.salle}` : titre;
+  $("#titre-aventure").title = d ? `Record : étage ${d.record}` : "";
 
   const combat = $("#combat");
   if (PARTIE.combat) {

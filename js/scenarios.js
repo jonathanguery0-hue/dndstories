@@ -60,13 +60,12 @@ Adapte librement selon les choix du joueur.`,
     titre: "Le Gouffre aux Mille Marches",
     accroche: "Un donjon sans fond, salle après salle, étage après étage. Combats, butin et un boss tous les cinq étages : jusqu'où descendras-tu ?",
     niveau: "Tous niveaux · combats en série",
-    intro: "Commence la partie : le personnage se tient au bord du Gouffre aux Mille Marches, au fond d'une ruine envahie de lierre. Décris brièvement l'escalier qui s'enfonce dans le noir, puis fais-le entrer dans la première salle (étage 1, salle 1) et lance directement le premier combat.",
+    intro: "Commence la partie : le personnage se tient au bord du Gouffre aux Mille Marches, au fond d'une ruine envahie de lierre. Décris brièvement l'escalier qui s'enfonce dans le noir, puis fais-le entrer dans la première salle : appelle salle_suivante et mets en scène ce qu'elle renvoie.",
     notes_mj: `MODE DONJON (« dungeon crawler ») : l'intérêt est l'enchaînement des combats. Va droit au but.
 - Récit COURT : 40 à 100 mots par réponse, 2-3 phrases d'ambiance par salle, pas de longs dialogues.
-- STRUCTURE : chaque étage compte 3 salles. Note la progression dans le journal (« Étage 2, salle 1 »).
-  La plupart des salles contiennent un combat (lance commencer_combat dès l'entrée ou après une phrase).
-  Varie de temps en temps : un piège (jet de sauvegarde, modifier_pv_joueur), un coffre (Investigation
-  ou Escamotage pour l'ouvrir, butin), une énigme rapide, ou une salle vide pour souffler.
+- PROGRESSION GÉRÉE PAR LE MOTEUR : à chaque fois que le personnage entre dans une nouvelle salle (y compris
+  la toute première), appelle salle_suivante. Il renvoie l'étage, la salle (3 par étage) et le TYPE de salle
+  (combat, piège, coffre, calme ou boss) avec une consigne : respecte-la toujours. Ne compte pas toi-même.
 - APRÈS CHAQUE SALLE : propose dans la ligne CHOIX 2 ou 3 portes ou passages différents (« La porte
   aux runes rouges », « Le couloir inondé », « L'escalier qui descend » quand l'étage est fini).
 - DIFFICULTÉ : adapte les rencontres au niveau du personnage et à l'étage (de plus en plus dur).
@@ -76,12 +75,13 @@ Adapte librement selon les choix du joueur.`,
   (consulter_regles pour choisir : « Bugbear », « Ghast », « Wight », « Minotaur »…).
 - BOSS tous les 5 étages (étage 5, 10, 15…) : une créature nommée, plus forte (ex. « Grokk, chef
   gobelours » à partir du Gobelours avec plus de PV, ou un monstre du SRD : Ogre, Owlbear, Minotaur),
-  avec un ou deux sbires. Raconte-le avec un peu plus d'emphase.
+  avec un ou deux sbires. Raconte-le avec un peu plus d'emphase. C'est salle_suivante qui annonce la salle
+  du boss (type « boss ») : ce jour-là, pas de rencontre ordinaire.
 - BUTIN après les combats : or (modifier_or, 5 à 30 po × étage), potions de soins (gerer_inventaire,
   « Potion de soins » : boire = modifier_pv_joueur soin 2d4+2), parfois une arme ou un objet magique
   du SRD après un boss. Donne l'XP des combats avec fin_combat (automatique).
-- REPOS : à la fin de chaque étage, l'escalier passe par un sanctuaire où le personnage peut faire
-  un repos court. Un repos long seulement après un boss (feu de camp sûr).
+- REPOS : quand salle_suivante l'indique (sanctuaire en début d'étage, feu de camp après un boss),
+  propose le repos dans les CHOIX ; ne fais reposer le personnage que s'il le choisit.
 - Si le personnage meurt, raconte une fin héroïque en indiquant l'étage atteint (son record).`,
   },
   libre: {

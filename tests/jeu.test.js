@@ -501,3 +501,36 @@ test("la ligne CHOIX est retirée même écrite en fin de phrase ou plusieurs fo
   assert.deepEqual(choix, ["J'achève le gobelin", "Je recule", "Je crie"]);
   assert.deepEqual(mj.extraireChoix("Tu as le choix : partir ou rester.").choix, []); // « choix » en minuscules : du récit
 });
+
+test("donjon : le moteur compte les étages et impose un boss à la fin de l'étage 5", () => {
+  const partie = nouvellePartie(guerrier(), "donjon");
+  const m = new Moteur(partie);
+  const salles = [];
+  for (let i = 0; i < 15; i++) salles.push(m.salle_suivante({}));
+  assert.deepEqual([salles[0].etage, salles[0].salle], [1, 1]);
+  assert.deepEqual([salles[3].etage, salles[3].salle], [2, 1]);
+  assert.match(salles[3].repos, /repos court/);
+  const boss = salles[14];
+  assert.deepEqual([boss.etage, boss.salle, boss.type], [5, 3, "boss"]);
+  assert.equal(salles.filter((x) => x.type === "boss").length, 1);
+  assert.ok(salles[11].annonce); // étage 4, salle 3 : le boss approche
+  const apres = m.salle_suivante({});
+  assert.deepEqual([apres.etage, apres.salle], [6, 1]);
+  assert.match(apres.repos, /repos long/);
+  assert.equal(partie.donjon.record, 6);
+  assert.match(mj.etatActuel(partie), /étage 6, salle 1 sur 3/);
+  assert.ok(mj.outilsPour(partie).some((o) => o.function.name === "salle_suivante"));
+});
+
+test("donjon : une partie déjà commencée reprend à l'étage indiqué par le récit", () => {
+  const partie = nouvellePartie(guerrier(), "donjon");
+  const m = new Moteur(partie);
+  assert.match(mj.etatActuel(partie), /pas encore suivie/);
+  const s1 = m.salle_suivante({ etage: 5, salle: 2 });
+  assert.deepEqual([s1.etage, s1.salle], [5, 2]);
+  assert.equal(m.salle_suivante({}).type, "boss");
+  // Hors du mode donjon, l'outil n'existe pas.
+  const autre = nouvellePartie(guerrier(), "brumesaule");
+  assert.ok(new Moteur(autre).executer("salle_suivante", {}).erreur);
+  assert.ok(!mj.outilsPour(autre).some((o) => o.function.name === "salle_suivante"));
+});

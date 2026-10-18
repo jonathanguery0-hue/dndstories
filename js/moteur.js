@@ -77,7 +77,15 @@ export const OUTILS_AUTORISES = [
   "jet_de_test", "lancer_des", "commencer_combat", "attaque_joueur", "lancer_sort", "attaque_ennemi",
   "degats_ennemi", "changer_etat_ennemi", "fin_combat", "modifier_pv_joueur", "jet_contre_la_mort",
   "utiliser_capacite", "gerer_inventaire", "modifier_or", "donner_xp", "repos", "modifier_condition",
-  "noter_journal",
+  "noter_journal", "salle_suivante",
+];
+
+// Mode donjon : contenu des salles ordinaires (le moteur décide, l'IA raconte).
+const SALLES_DONJON = [
+  { type: "combat", poids: 6, consigne: "Salle de combat : lance commencer_combat avec des ennemis adaptés au niveau et à l'étage." },
+  { type: "piege", poids: 1.5, consigne: "Salle piégée : décris le piège, demande un jet de sauvegarde ou de compétence ; en cas d'échec, modifier_pv_joueur (dégâts adaptés à l'étage)." },
+  { type: "coffre", poids: 1.5, consigne: "Salle au trésor : un coffre (Investigation ou Escamotage pour l'ouvrir, piège possible) ; butin : or et parfois une potion." },
+  { type: "calme", poids: 1, consigne: "Salle calme : un lieu étrange ou une petite énigme, sans combat, pour souffler." },
 ];
 
 export class Moteur {
@@ -789,6 +797,53 @@ export class Moteur {
     }
     this.evt(`${action === "ajouter" ? "➕" : "➖"} Condition : ${condition}`, "systeme");
     return { conditions: p.conditions };
+  }
+
+  /**
+   * Mode donjon : le personnage entre dans la salle suivante. Le moteur tient le compte des étages
+   * (3 salles par étage) et impose le contenu : boss à la dernière salle des étages 5, 10, 15…
+   */
+  salle_suivante({ etage = null, salle = null } = {}) {
+    if (this.partie.scenario !== "donjon") throw new ErreurAction("salle_suivante n'existe qu'en mode donjon.");
+    let d = this.partie.donjon;
+    if (!d && Number(etage) > 0) {
+      // Partie commencée avant le suivi automatique : on reprend où le récit en était.
+      d = { etage: Math.trunc(Number(etage)), salle: Math.min(Math.max(Math.trunc(Number(salle) || 1), 1), 3), record: 0 };
+    } else if (!d) {
+      d = { etage: 1, salle: 1, record: 0 };
+    } else if (d.salle >= 3) {
+      d = { ...d, etage: d.etage + 1, salle: 1 };
+    } else {
+      d = { ...d, salle: d.salle + 1 };
+    }
+    d.record = Math.max(d.record ?? 0, d.etage);
+    this.partie.donjon = d;
+
+    const boss = d.etage % 5 === 0 && d.salle === 3;
+    let salleChoisie;
+    if (boss) {
+      salleChoisie = {
+        type: "boss",
+        consigne: `SALLE DU BOSS (étage ${d.etage}) : un boss nommé, nettement plus fort que les rencontres habituelles `
+          + `(beaucoup plus de PV, attaque plus puissante, éventuellement Multiattack), avec 1 ou 2 sbires. Mise en scène `
+          + "épique. Récompense après la victoire : bel objet (arme ou objet magique du SRD) et beaucoup d'or ; un repos long "
+          + "sera ensuite possible.",
+      };
+    } else {
+      const total = SALLES_DONJON.reduce((t, x) => t + x.poids, 0);
+      let tirage = (des.d(1000) / 1000) * total;
+      salleChoisie = SALLES_DONJON.find((x) => (tirage -= x.poids) <= 0) ?? SALLES_DONJON[0];
+    }
+    const res = { etage: d.etage, salle: d.salle, type: salleChoisie.type, consigne: salleChoisie.consigne, record: d.record };
+    if (d.salle === 1 && d.etage > 1) {
+      res.repos = (d.etage - 1) % 5 === 0
+        ? "Après le boss : un feu de camp sûr permet un repos long avant cette salle."
+        : "Un sanctuaire dans l'escalier permet un repos court avant cette salle.";
+    }
+    if (d.salle === 3 && !boss) res.note = "Dernière salle de l'étage : propose ensuite l'escalier qui descend.";
+    if (!boss && (d.etage + 1) % 5 === 0 && d.salle === 3) res.annonce = "Le prochain étage abrite un boss : laisse planer une menace.";
+    this.evt(`🏰 Étage ${d.etage} · salle ${d.salle}${boss ? " — 👑 SALLE DU BOSS" : ""}`, "systeme");
+    return res;
   }
 
   noter_journal({ note }) {
