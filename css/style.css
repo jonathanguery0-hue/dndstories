@@ -195,6 +195,28 @@ input[type=range] { width: 100%; accent-color: var(--or); }
 .de-anime { display: inline-block; animation: rouler 1s infinite linear; }
 @keyframes rouler { to { transform: rotate(360deg); } }
 
+/* ---- Carte du donjon */
+.carte-donjon { border: 1px solid var(--or-fonce); border-radius: 8px; padding: .6rem; margin-bottom: .6rem; background: rgba(0, 0, 0, .2); }
+.entete-carte { display: flex; justify-content: space-between; align-items: baseline; gap: .5rem; margin-bottom: .4rem; }
+.entete-carte span { font-family: "Cinzel", Georgia, serif; color: var(--or); }
+.entete-carte small { color: var(--discret); font-size: .75rem; text-align: right; }
+.grille-carte { display: grid; justify-content: center; align-items: center; gap: 0; margin: .3rem 0; }
+.salle-carte {
+  width: 34px; height: 34px; border-radius: 6px; border: 1px solid var(--bord); background: var(--fond-2);
+  color: var(--texte); font-size: .95rem; line-height: 1; padding: 0; display: flex; align-items: center; justify-content: center;
+}
+.salle-carte.inconnue { border-style: dashed; opacity: .55; }
+.salle-carte.ici { border-color: var(--or); box-shadow: 0 0 0 2px var(--or) inset, 0 0 10px rgba(212, 166, 74, .45); }
+.salle-carte[data-direction] { cursor: pointer; border-color: var(--or-fonce); opacity: 1; }
+.salle-carte[data-direction]:hover { background: #2f271b; border-color: var(--or); }
+.salle-carte:disabled { cursor: default; }
+.couloir { justify-self: center; align-self: center; background: var(--or-fonce); }
+.couloir.h { width: 12px; height: 3px; }
+.couloir.v { width: 3px; height: 12px; }
+.ici-carte { font-size: .82rem; color: var(--discret); text-align: center; }
+.actions-carte { display: flex; gap: .4rem; justify-content: center; margin-top: .4rem; }
+.actions-carte:empty { display: none; }
+
 /* ---- Bandeau de combat */
 .panneau .combat { display: none !important; } /* remplacé par le bandeau au-dessus du récit */
 .bandeau-combat {

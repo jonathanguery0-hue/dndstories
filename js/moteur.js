@@ -7,6 +7,7 @@
 import * as des from "./des.js";
 import * as srd from "./srd.js";
 import { monstreSRD } from "./regles.js";
+import { DIRECTIONS, ETAGES_PAR_SECTION, genererSection, sectionDeLEtage } from "./donjon.js";
 import {
   bonusAttaqueArme, bonusAttaqueSort, bonusCompetence, bonusDegatsArme, bonusSauvegarde, ca, ddSort,
   enRage, gagnerNiveau, mod, resistances, signe, sortsConnus,
@@ -77,15 +78,7 @@ export const OUTILS_AUTORISES = [
   "jet_de_test", "lancer_des", "commencer_combat", "attaque_joueur", "lancer_sort", "attaque_ennemi",
   "degats_ennemi", "changer_etat_ennemi", "fin_combat", "modifier_pv_joueur", "jet_contre_la_mort",
   "utiliser_capacite", "gerer_inventaire", "modifier_or", "donner_xp", "repos", "modifier_condition",
-  "noter_journal", "salle_suivante",
-];
-
-// Mode donjon : contenu des salles ordinaires (le moteur décide, l'IA raconte).
-const SALLES_DONJON = [
-  { type: "combat", poids: 6, consigne: "Salle de combat : lance commencer_combat avec des ennemis adaptés au niveau et à l'étage." },
-  { type: "piege", poids: 1.5, consigne: "Salle piégée : décris le piège, demande un jet de sauvegarde ou de compétence ; en cas d'échec, modifier_pv_joueur (dégâts adaptés à l'étage)." },
-  { type: "coffre", poids: 1.5, consigne: "Salle au trésor : un coffre (Investigation ou Escamotage pour l'ouvrir, piège possible) ; butin : or et parfois une potion." },
-  { type: "calme", poids: 1, consigne: "Salle calme : un lieu étrange ou une petite énigme, sans combat, pour souffler." },
+  "noter_journal", "explorer", "fouiller", "descendre",
 ];
 
 export class Moteur {
@@ -602,6 +595,11 @@ export class Moteur {
     this.partie.combat = null;
     const p = this.perso;
     retirerRage(p);
+    // Mode donjon : la salle est nettoyée si plus aucun ennemi n'est debout.
+    if (this.partie.donjon?.etages && issue !== "fuite" && issue !== "defaite") {
+      const { salle } = this.salleCourante();
+      if (salle.ennemis && combat.ennemis.every((e) => e.etat !== "actif")) salle.nettoyee = true;
+    }
     this.evt(`Fin du combat (${issue}). +${xp} XP`, "systeme");
     const res = { issue, xp_gagne: xp };
     return xp ? { ...res, ...this.gagnerXp(xp) } : res;
@@ -737,6 +735,13 @@ export class Moteur {
     const p = this.perso;
     if (this.partie.combat) throw new ErreurAction("Impossible de se reposer pendant un combat.");
     if (p.mort.mort) throw new ErreurAction(`${p.nom} est mort.`);
+    if (type === "long" && this.partie.donjon?.etages) {
+      const { salle } = this.salleCourante();
+      if (salle.type !== "sanctuaire" && !(salle.type === "boss" && salle.nettoyee)) {
+        throw new ErreurAction("Dans le Gouffre, un repos long n'est possible que dans un sanctuaire ou après avoir vaincu "
+          + "le boss. Un repos court reste possible ici.");
+      }
+    }
     if (type === "court") {
       let soinTotal = 0;
       const dv = p.des_de_vie;
@@ -799,50 +804,129 @@ export class Moteur {
     return { conditions: p.conditions };
   }
 
-  /**
-   * Mode donjon : le personnage entre dans la salle suivante. Le moteur tient le compte des étages
-   * (3 salles par étage) et impose le contenu : boss à la dernière salle des étages 5, 10, 15…
-   */
-  salle_suivante({ etage = null, salle = null } = {}) {
-    if (this.partie.scenario !== "donjon") throw new ErreurAction("salle_suivante n'existe qu'en mode donjon.");
-    let d = this.partie.donjon;
-    if (!d && Number(etage) > 0) {
-      // Partie commencée avant le suivi automatique : on reprend où le récit en était.
-      d = { etage: Math.trunc(Number(etage)), salle: Math.min(Math.max(Math.trunc(Number(salle) || 1), 1), 3), record: 0 };
-    } else if (!d) {
-      d = { etage: 1, salle: 1, record: 0 };
-    } else if (d.salle >= 3) {
-      d = { ...d, etage: d.etage + 1, salle: 1 };
-    } else {
-      d = { ...d, salle: d.salle + 1 };
-    }
-    d.record = Math.max(d.record ?? 0, d.etage);
-    this.partie.donjon = d;
+  // ---- mode donjon (Le Gouffre aux Mille Marches) : le plan est généré par le moteur
 
-    const boss = d.etage % 5 === 0 && d.salle === 3;
-    let salleChoisie;
-    if (boss) {
-      salleChoisie = {
-        type: "boss",
-        consigne: `SALLE DU BOSS (étage ${d.etage}) : un boss nommé, nettement plus fort que les rencontres habituelles `
-          + `(beaucoup plus de PV, attaque plus puissante, éventuellement Multiattack), avec 1 ou 2 sbires. Mise en scène `
-          + "épique. Récompense après la victoire : bel objet (arme ou objet magique du SRD) et beaucoup d'or ; un repos long "
-          + "sera ensuite possible.",
-      };
-    } else {
-      const total = SALLES_DONJON.reduce((t, x) => t + x.poids, 0);
-      let tirage = (des.d(1000) / 1000) * total;
-      salleChoisie = SALLES_DONJON.find((x) => (tirage -= x.poids) <= 0) ?? SALLES_DONJON[0];
+  donjon() {
+    if (this.partie.scenario !== "donjon") throw new ErreurAction("Cet outil n'existe qu'en mode donjon.");
+    let d = this.partie.donjon;
+    if (!d?.etages) {
+      // Nouvelle partie, ou partie commencée avant la génération du plan : on génère la section de l'étage atteint.
+      const etage = Math.max(Number(d?.etage) || 1, 1);
+      d = this.partie.donjon = { record: Math.max(d?.record ?? 0, etage), etages: {}, position: null };
+      this.genererSection(sectionDeLEtage(etage));
+      d.position = d.etages[etage].entree;
+      d.etages[etage].salles[d.position].visitee = true;
     }
-    const res = { etage: d.etage, salle: d.salle, type: salleChoisie.type, consigne: salleChoisie.consigne, record: d.record };
-    if (d.salle === 1 && d.etage > 1) {
-      res.repos = (d.etage - 1) % 5 === 0
-        ? "Après le boss : un feu de camp sûr permet un repos long avant cette salle."
-        : "Un sanctuaire dans l'escalier permet un repos court avant cette salle.";
+    return d;
+  }
+
+  genererSection(numero) {
+    const d = this.partie.donjon;
+    const statsDe = (modele) => srd.MONSTRES[modele] ?? monstreSRD(modele);
+    const section = genererSection(numero, this.perso.niveau, statsDe);
+    for (const etage of section.etages) d.etages[etage.numero] = etage;
+    d.section = numero;
+    // On ne garde que la section en cours et la précédente (pour la carte), pour alléger la sauvegarde.
+    for (const n of Object.keys(d.etages)) if (sectionDeLEtage(Number(n)) < numero - 1) delete d.etages[n];
+  }
+
+  salleCourante() {
+    const d = this.donjon();
+    const etage = Number(d.position.split("-")[0]);
+    return { d, etage, plan: d.etages[etage], salle: d.etages[etage].salles[d.position] };
+  }
+
+  /** Description de la salle courante pour l'IA (sans dévoiler les salles inexplorées). */
+  decrireSalle() {
+    const { d, etage, plan, salle } = this.salleCourante();
+    const sorties = Object.fromEntries(Object.entries(salle.sorties).map(([dir, id]) => {
+      const voisine = plan.salles[id];
+      return [dir, voisine.visitee ? `${voisine.nom} (déjà visitée${voisine.nettoyee ? ", sûre" : ""})` : "inconnue"];
+    }));
+    const etat = salle.ennemis && !salle.nettoyee ? "ennemis présents" : salle.piege && !salle.piege.declenche ? "piégée"
+      : salle.tresor && !salle.tresor.pris ? "trésor à trouver" : "sûre";
+    return {
+      etage, section: d.section, theme: plan.theme, ambiance: plan.ambiance,
+      salle: { nom: salle.nom, type: salle.type, etat }, sorties,
+      escalier: ["escalier", "boss"].includes(salle.type)
+        ? (salle.type === "boss" && !salle.nettoyee ? "L'escalier est derrière le boss." : "Escalier vers l'étage suivant : utilise descendre.")
+        : undefined,
+      repos: salle.type === "sanctuaire" ? "Sanctuaire : repos court ou long possible ici."
+        : salle.type === "boss" && salle.nettoyee ? "Le boss est vaincu : repos long possible ici." : undefined,
+      record: d.record,
+    };
+  }
+
+  /** Mise en scène automatique à l'entrée d'une salle : combat prévu ou piège. */
+  entrerDansSalle() {
+    const { salle } = this.salleCourante();
+    const premiereVisite = !salle.visitee;
+    salle.visitee = true;
+    const res = { ...this.decrireSalle(), premiere_visite: premiereVisite };
+    if (salle.ennemis && !salle.nettoyee) {
+      res.combat = this.commencer_combat({ ennemis: salle.ennemis });
+      res.consigne = salle.type === "boss"
+        ? "SALLE DU BOSS : le combat a commencé. Mise en scène épique du boss et de ses sbires, puis joue l'initiative."
+        : "Le combat a commencé : décris brièvement les ennemis, puis joue l'initiative.";
+    } else if (salle.piege && !salle.piege.declenche) {
+      const pg = salle.piege;
+      pg.declenche = true;
+      const jet = this.jet_de_test({ type: "sauvegarde", nom: pg.sauvegarde, dd: pg.dd, raison: pg.nom });
+      res.piege = { nom: pg.nom, sauvegarde: jet };
+      if (!jet.reussite) {
+        res.piege.degats = this.modifier_pv_joueur({ type: "degats", formule: pg.degats, type_degats: pg.type_degats, raison: pg.nom });
+      }
+      res.consigne = "Raconte le piège et son résultat (déjà appliqué par le moteur).";
+    } else if (salle.tresor && !salle.tresor.pris) {
+      res.consigne = "Quelque chose de précieux se cache ici : le joueur peut fouiller la salle (outil fouiller).";
     }
-    if (d.salle === 3 && !boss) res.note = "Dernière salle de l'étage : propose ensuite l'escalier qui descend.";
-    if (!boss && (d.etage + 1) % 5 === 0 && d.salle === 3) res.annonce = "Le prochain étage abrite un boss : laisse planer une menace.";
-    this.evt(`🏰 Étage ${d.etage} · salle ${d.salle}${boss ? " — 👑 SALLE DU BOSS" : ""}`, "systeme");
+    return res;
+  }
+
+  explorer({ direction = "" } = {}) {
+    if (this.partie.combat) throw new ErreurAction("Impossible de changer de salle pendant un combat (termine-le ou fuis avec fin_combat).");
+    const nouveau = !this.partie.donjon?.etages;
+    const { d, plan, salle } = this.salleCourante();
+    if (nouveau) {
+      this.evt(`🏰 Étage ${plan.numero} — ${plan.theme}`, "systeme");
+      return { ...this.decrireSalle(), premiere_visite: true, consigne: "Début de l'exploration : décris le palier et les sorties." };
+    }
+    const dir = minus(direction);
+    if (!DIRECTIONS[dir]) throw new ErreurAction("direction doit être nord, sud, est ou ouest.");
+    const cible = salle.sorties[dir];
+    if (!cible) {
+      throw new ErreurAction(`Pas de sortie vers le ${dir}. Sorties : ${Object.keys(salle.sorties).join(", ")}.`);
+    }
+    d.position = cible;
+    const res = this.entrerDansSalle();
+    this.evt(`🏰 Étage ${res.etage} · ${res.salle.nom}${res.salle.type === "boss" ? " — 👑 SALLE DU BOSS" : ""}`, "systeme");
+    return res;
+  }
+
+  fouiller() {
+    if (this.partie.combat) throw new ErreurAction("Impossible de fouiller pendant un combat.");
+    const { salle } = this.salleCourante();
+    if (salle.ennemis && !salle.nettoyee) throw new ErreurAction("Des ennemis gardent encore cette salle.");
+    if (!salle.tresor || salle.tresor.pris) return { trouve: false, note: "Rien de plus à trouver ici." };
+    salle.tresor.pris = true;
+    if (salle.tresor.or) this.modifier_or({ montant: salle.tresor.or, raison: `trésor : ${salle.nom}` });
+    for (const objet of salle.tresor.objets) this.gerer_inventaire({ action: "ajouter", objet });
+    return { trouve: true, or: salle.tresor.or, objets: salle.tresor.objets };
+  }
+
+  descendre() {
+    if (this.partie.combat) throw new ErreurAction("Impossible de descendre pendant un combat.");
+    const { d, etage, salle } = this.salleCourante();
+    if (!["escalier", "boss"].includes(salle.type)) throw new ErreurAction("Il n'y a pas d'escalier dans cette salle.");
+    if (salle.type === "boss" && !salle.nettoyee) throw new ErreurAction("Le boss barre encore le passage.");
+    const suivant = etage + 1;
+    if (!d.etages[suivant]) this.genererSection(sectionDeLEtage(suivant));
+    d.position = d.etages[suivant].entree;
+    d.record = Math.max(d.record, suivant);
+    const res = this.entrerDansSalle();
+    const nouvelleSection = (suivant - 1) % ETAGES_PAR_SECTION === 0;
+    this.evt(`🏰 Étage ${suivant} — ${d.etages[suivant].theme}${nouvelleSection ? " (nouvelle section du Gouffre)" : ""}`, "systeme");
+    if (suivant % ETAGES_PAR_SECTION === 0) res.annonce = "Cet étage abrite le boss de la section : fais planer la menace.";
     return res;
   }
 

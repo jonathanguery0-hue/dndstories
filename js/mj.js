@@ -212,16 +212,18 @@ export function consignesFixes(partie) {
 }
 
 /** Partie qui change à chaque tour (fiche, combat, journal, résumé) : placée juste avant l'action du joueur. */
-const OUTIL_DONJON = outil("salle_suivante",
-  "MODE DONJON : à appeler CHAQUE FOIS que le personnage entre dans une nouvelle salle. Le moteur compte les étages "
-  + "et les salles et renvoie le type de salle à mettre en scène (combat, piège, coffre, calme ou BOSS) : respecte-le.",
-  {
-    etage: { type: "integer", description: "Uniquement au premier appel d'une partie déjà commencée : l'étage actuel selon le récit" },
-    salle: { type: "integer", description: "Uniquement avec etage : la salle (1 à 3) dans laquelle le personnage entre" },
-  }, []);
+const OUTILS_DONJON = [
+  outil("explorer",
+    "MODE DONJON : déplace le personnage par une sortie de la salle actuelle. Le moteur applique ce que la salle "
+    + "contient (combat prévu lancé automatiquement, piège avec jet de sauvegarde) et renvoie sa description. "
+    + "Sans direction (premier appel), place le personnage sur le palier de l'étage.",
+    { direction: { type: "string", enum: ["nord", "sud", "est", "ouest"] } }, []),
+  outil("fouiller", "MODE DONJON : fouille la salle actuelle (trésor : or et objets ajoutés automatiquement).", {}, []),
+  outil("descendre", "MODE DONJON : prend l'escalier de la salle actuelle vers l'étage suivant (après le boss au 5e étage d'une section).", {}, []),
+];
 
 /** Outils proposés à l'IA pour cette partie (le mode donjon a son outil de progression). */
-export const outilsPour = (partie) => (partie.scenario === "donjon" ? [...OUTILS, OUTIL_DONJON] : OUTILS);
+export const outilsPour = (partie) => (partie.scenario === "donjon" ? [...OUTILS, ...OUTILS_DONJON] : OUTILS);
 
 export function etatActuel(partie) {
   const morceaux = ["FICHE DU PERSONNAGE (état actuel, fait foi) :\n" + resumeTexte(partie.personnage)];
@@ -232,15 +234,31 @@ export function etatActuel(partie) {
   }
   if (partie.journal.length) morceaux.push("JOURNAL (faits établis) :\n" + partie.journal.map((n) => `- ${n}`).join("\n"));
   if (partie.resume) morceaux.push("RÉSUMÉ DE L'HISTOIRE JUSQU'ICI :\n" + partie.resume);
-  if (partie.scenario === "donjon") {
-    const d = partie.donjon;
-    morceaux.push(d
-      ? `DONJON (compté par le moteur, fait foi) : étage ${d.etage}, salle ${d.salle} sur 3. Record : étage ${d.record}. `
-        + "Appelle salle_suivante dès que le personnage passe dans une nouvelle salle."
-      : "DONJON : la progression n'est pas encore suivie. Au prochain passage dans une salle, appelle salle_suivante "
-        + "(avec etage et salle si le récit est déjà plus loin que l'étage 1).");
-  }
+  if (partie.scenario === "donjon") morceaux.push(resumeDonjon(partie));
   return morceaux.join("\n\n");
+}
+
+/** Où en est le personnage dans le donjon généré (seules les salles déjà vues sont décrites). */
+export function resumeDonjon(partie) {
+  const d = partie.donjon;
+  if (!d?.etages) {
+    return "DONJON : le plan n'est pas encore généré. Appelle explorer (sans direction) pour placer le personnage"
+      + (d?.etage ? ` sur le palier de l'étage ${d.etage}.` : " sur le palier du premier étage.");
+  }
+  const etage = Number(d.position.split("-")[0]);
+  const plan = d.etages[etage];
+  const salle = plan.salles[d.position];
+  const visitees = Object.values(plan.salles).filter((x) => x.visitee).length;
+  const sorties = Object.entries(salle.sorties).map(([dir, id]) => {
+    const v = plan.salles[id];
+    return `${dir} → ${v.visitee ? `${v.nom}${v.nettoyee || !v.ennemis ? "" : " (ennemis)"}` : "inconnue"}`;
+  }).join(", ");
+  const etat = salle.ennemis && !salle.nettoyee ? "ennemis présents" : "sûre";
+  const escalierVu = Object.values(plan.salles).some((x) => x.visitee && ["escalier", "boss"].includes(x.type));
+  return `DONJON (plan généré par le moteur, fait foi) : étage ${etage} — ${plan.theme} (${plan.ambiance}). `
+    + `Salle actuelle : ${salle.nom} [${salle.type}, ${etat}]. Sorties : ${sorties || "aucune"}. `
+    + `${visitees}/${Object.keys(plan.salles).length} salles explorées à cet étage ; escalier ${escalierVu ? "trouvé" : "pas encore trouvé"}. `
+    + `Record : étage ${d.record}.${etage % 5 === 0 ? " Le boss de la section rôde à cet étage." : ""}`;
 }
 
 export function construireSysteme(partie) {

@@ -489,7 +489,7 @@ test("aventure donjon : disponible et transmise au maître du jeu", async () => 
   const partie = nouvellePartie(guerrier(), "donjon");
   const consignes = mj.consignesFixes(partie);
   assert.match(consignes, /MODE DONJON/);
-  assert.match(consignes, /BOSS tous les 5 étages/);
+  assert.match(consignes, /GÉNÉRÉ PAR LE MOTEUR/);
   const { appeler, requetes } = fauxClient([{ content: "Le Gouffre s'ouvre devant toi.\nCHOIX: Je descends | Je regarde autour" }]);
   await mj.jouerTour(partie, "", appeler);
   assert.match(requetes[0].messages.at(-1).content, /Gouffre aux Mille Marches/);
@@ -502,35 +502,146 @@ test("la ligne CHOIX est retirée même écrite en fin de phrase ou plusieurs fo
   assert.deepEqual(mj.extraireChoix("Tu as le choix : partir ou rester.").choix, []); // « choix » en minuscules : du récit
 });
 
-test("donjon : le moteur compte les étages et impose un boss à la fin de l'étage 5", () => {
-  const partie = nouvellePartie(guerrier(), "donjon");
-  const m = new Moteur(partie);
-  const salles = [];
-  for (let i = 0; i < 15; i++) salles.push(m.salle_suivante({}));
-  assert.deepEqual([salles[0].etage, salles[0].salle], [1, 1]);
-  assert.deepEqual([salles[3].etage, salles[3].salle], [2, 1]);
-  assert.match(salles[3].repos, /repos court/);
-  const boss = salles[14];
-  assert.deepEqual([boss.etage, boss.salle, boss.type], [5, 3, "boss"]);
-  assert.equal(salles.filter((x) => x.type === "boss").length, 1);
-  assert.ok(salles[11].annonce); // étage 4, salle 3 : le boss approche
-  const apres = m.salle_suivante({});
-  assert.deepEqual([apres.etage, apres.salle], [6, 1]);
-  assert.match(apres.repos, /repos long/);
-  assert.equal(partie.donjon.record, 6);
-  assert.match(mj.etatActuel(partie), /étage 6, salle 1 sur 3/);
-  assert.ok(mj.outilsPour(partie).some((o) => o.function.name === "salle_suivante"));
+// ------------------------------------------------------------------ donjon généré
+
+import { genererSection } from "../js/donjon.js";
+
+/** Directions pour aller d'une salle à une autre (parcours en largeur). */
+function chemin(plan, depart, arrivee) {
+  const vu = new Map([[depart, []]]);
+  const file = [depart];
+  while (file.length) {
+    const id = file.shift();
+    if (id === arrivee) return vu.get(id);
+    for (const [dir, voisin] of Object.entries(plan.salles[id].sorties)) {
+      if (!vu.has(voisin)) { vu.set(voisin, [...vu.get(id), dir]); file.push(voisin); }
+    }
+  }
+  return null;
+}
+
+test("donjon : chaque section de 5 étages est complète et cohérente", () => {
+  for (let graine = 1; graine <= 20; graine++) {
+    des.definirGraine(graine);
+    const section = genererSection(1, 2);
+    assert.equal(section.etages.length, 5);
+    section.etages.forEach((plan, k) => {
+      const salles = Object.values(plan.salles);
+      const types = salles.map((x) => x.type);
+      assert.equal(types.filter((t) => t === "entree").length, 1);
+      assert.equal(types.filter((t) => t === (k === 4 ? "boss" : "escalier")).length, 1, `étage ${plan.numero}`);
+      assert.ok(types.filter((t) => t === "combat").length >= 2);
+      assert.equal(types.includes("sanctuaire"), k === 1 || k === 3);
+      for (const x of salles) {
+        assert.ok(chemin(plan, plan.entree, x.id), `salle ${x.id} accessible`);
+        for (const [dir, id] of Object.entries(x.sorties)) {
+          const retour = { nord: "sud", sud: "nord", est: "ouest", ouest: "est" }[dir];
+          assert.equal(plan.salles[id].sorties[retour], x.id, "les portes vont dans les deux sens");
+        }
+        if (["combat", "boss"].includes(x.type)) assert.ok(x.ennemis.length >= 1);
+      }
+      const boss = salles.find((x) => x.type === "boss");
+      if (boss) assert.ok(boss.ennemis[0].xp > 0 && boss.tresor.objets.length === 2);
+    });
+  }
 });
 
-test("donjon : une partie déjà commencée reprend à l'étage indiqué par le récit", () => {
+test("donjon : explorer, combattre, fouiller, se reposer et descendre", async () => {
+  des.definirGraine(7);
   const partie = nouvellePartie(guerrier(), "donjon");
   const m = new Moteur(partie);
-  assert.match(mj.etatActuel(partie), /pas encore suivie/);
-  const s1 = m.salle_suivante({ etage: 5, salle: 2 });
-  assert.deepEqual([s1.etage, s1.salle], [5, 2]);
-  assert.equal(m.salle_suivante({}).type, "boss");
-  // Hors du mode donjon, l'outil n'existe pas.
-  const autre = nouvellePartie(guerrier(), "brumesaule");
-  assert.ok(new Moteur(autre).executer("salle_suivante", {}).erreur);
-  assert.ok(!mj.outilsPour(autre).some((o) => o.function.name === "salle_suivante"));
+  partie.personnage.pv_max = partie.personnage.pv = 999; // héros increvable pour le test
+  assert.match(mj.resumeDonjon(partie), /pas encore généré/);
+  const debut = m.explorer({});
+  assert.equal(debut.etage, 1);
+  assert.equal(debut.salle.type, "entree");
+  // Le moteur recopie l'état quand il attend un jet de dé : on relit toujours le plan depuis la partie.
+  const etage1 = () => partie.donjon.etages[1];
+  const plan = etage1();
+  assert.ok(mj.outilsPour(partie).some((o) => o.function.name === "explorer"));
+
+  // Aller jusqu'à une salle de combat : le combat prévu démarre tout seul.
+  const idCombat = Object.values(plan.salles).find((x) => x.type === "combat").id;
+  const route = chemin(plan, partie.donjon.position, idCombat);
+  for (const dir of route) {
+    const r = await m.executerAvecJets("explorer", { direction: dir }, async (jet) => Array(jet.nombre).fill(15));
+    if (partie.combat) {
+      // Une autre salle de combat sur le chemin : on la nettoie d'abord.
+      for (const e of partie.combat.ennemis) m.changer_etat_ennemi({ ennemi: e.id, etat: "vaincu" });
+      m.fin_combat({ issue: "victoire" });
+      assert.ok(r.combat);
+    }
+  }
+  assert.equal(partie.donjon.position, idCombat);
+  const combat = etage1().salles[idCombat];
+  assert.ok(combat.nettoyee);
+  assert.match(m.executer("explorer", { direction: "haut" }).erreur, /nord, sud, est ou ouest/);
+  assert.match(m.executer("repos", { type: "long" }).erreur, /sanctuaire/);
+  assert.ok(m.repos({ type: "court" }));
+
+  // Revenir dans une salle nettoyée ne relance pas le combat.
+  const retour = Object.entries(combat.sorties)[0];
+  m.explorer({ direction: retour[0] });
+  const revenir = { nord: "sud", sud: "nord", est: "ouest", ouest: "est" }[retour[0]];
+  const r2 = m.explorer({ direction: revenir });
+  assert.equal(r2.combat, undefined);
+
+  // L'escalier mène à l'étage 2 ; on ne peut pas descendre ailleurs.
+  assert.ok(m.executer("descendre", {}).erreur);
+  const escalier = Object.values(etage1().salles).find((x) => x.type === "escalier");
+  for (const dir of chemin(etage1(), partie.donjon.position, escalier.id)) {
+    await m.executerAvecJets("explorer", { direction: dir }, async (jet) => Array(jet.nombre).fill(15));
+    if (partie.combat) {
+      for (const e of partie.combat.ennemis) m.changer_etat_ennemi({ ennemi: e.id, etat: "vaincu" });
+      m.fin_combat({ issue: "victoire" });
+    }
+  }
+  const bas = m.descendre();
+  assert.equal(bas.etage, 2);
+  assert.equal(partie.donjon.record, 2);
+  assert.match(mj.resumeDonjon(partie), /étage 2/);
+});
+
+test("donjon : un piège demande un jet au joueur sans changer le plan", async () => {
+  des.definirGraine(11);
+  const partie = nouvellePartie(guerrier(), "donjon");
+  const m = new Moteur(partie);
+  m.explorer({});
+  // On force un piège juste à côté du palier.
+  const plan = partie.donjon.etages[1];
+  const [dir, id] = Object.entries(plan.salles[plan.entree].sorties)[0];
+  Object.assign(plan.salles[id], { type: "piege", ennemis: undefined, piege: { nom: "Rune de feu", sauvegarde: "DEX", dd: 30, degats: "6", type_degats: "feu", declenche: false } });
+  delete plan.salles[id].ennemis;
+  const avant = JSON.stringify(plan.salles[id].sorties);
+  const jets = [];
+  const r = await m.executerAvecJets("explorer", { direction: dir }, async (jet) => { jets.push(jet); return [5]; });
+  assert.equal(jets.length, 1);
+  assert.equal(r.piege.degats.montant, 6);
+  assert.equal(JSON.stringify(partie.donjon.etages[1].salles[id].sorties), avant);
+  assert.ok(partie.donjon.etages[1].salles[id].piege.declenche);
+});
+
+test("donjon : une partie de l'ancien système reprend sur le palier de son étage", () => {
+  const partie = nouvellePartie(guerrier(), "donjon");
+  partie.donjon = { etage: 5, salle: 2, record: 5 };
+  const m = new Moteur(partie);
+  const r = m.explorer({});
+  assert.equal(r.etage, 5);
+  assert.ok(Object.values(partie.donjon.etages[5].salles).some((x) => x.type === "boss"));
+  assert.ok(new Moteur(nouvellePartie(guerrier(), "brumesaule")).executer("explorer", {}).erreur);
+});
+
+test("donjon : fouiller une salle au trésor ajoute l'or et les objets une seule fois", () => {
+  des.definirGraine(3);
+  const partie = nouvellePartie(guerrier(), "donjon");
+  const m = new Moteur(partie);
+  m.explorer({});
+  const plan = partie.donjon.etages[1];
+  plan.salles[plan.entree].tresor = { or: 42, objets: ["Potion de soins"], pris: false };
+  const orAvant = partie.personnage.or;
+  const r = m.fouiller();
+  assert.ok(r.trouve);
+  assert.equal(partie.personnage.or, orAvant + 42);
+  assert.ok(partie.personnage.inventaire.some((o) => o.nom === "Potion de soins"));
+  assert.equal(m.fouiller().trouve, false);
 });

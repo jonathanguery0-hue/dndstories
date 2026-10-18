@@ -60,28 +60,21 @@ Adapte librement selon les choix du joueur.`,
     titre: "Le Gouffre aux Mille Marches",
     accroche: "Un donjon sans fond, salle après salle, étage après étage. Combats, butin et un boss tous les cinq étages : jusqu'où descendras-tu ?",
     niveau: "Tous niveaux · combats en série",
-    intro: "Commence la partie : le personnage se tient au bord du Gouffre aux Mille Marches, au fond d'une ruine envahie de lierre. Décris brièvement l'escalier qui s'enfonce dans le noir, puis fais-le entrer dans la première salle : appelle salle_suivante et mets en scène ce qu'elle renvoie.",
-    notes_mj: `MODE DONJON (« dungeon crawler ») : l'intérêt est l'enchaînement des combats. Va droit au but.
-- Récit COURT : 40 à 100 mots par réponse, 2-3 phrases d'ambiance par salle, pas de longs dialogues.
-- PROGRESSION GÉRÉE PAR LE MOTEUR : à chaque fois que le personnage entre dans une nouvelle salle (y compris
-  la toute première), appelle salle_suivante. Il renvoie l'étage, la salle (3 par étage) et le TYPE de salle
-  (combat, piège, coffre, calme ou boss) avec une consigne : respecte-la toujours. Ne compte pas toi-même.
-- APRÈS CHAQUE SALLE : propose dans la ligne CHOIX 2 ou 3 portes ou passages différents (« La porte
-  aux runes rouges », « Le couloir inondé », « L'escalier qui descend » quand l'étage est fini).
-- DIFFICULTÉ : adapte les rencontres au niveau du personnage et à l'étage (de plus en plus dur).
-  Niveau 1 : 2 ou 3 Kobolds, Rats géants, Gobelins, 1 Loup ou 2 Squelettes.
-  Niveau 2 : Gobelins + Hobgobelin, 2 Zombies, Orc, Goule.
-  Niveau 3 et plus : Gnolls, Orcs, Araignée géante, Gobelours, puis monstres du SRD plus puissants
-  (consulter_regles pour choisir : « Bugbear », « Ghast », « Wight », « Minotaur »…).
-- BOSS tous les 5 étages (étage 5, 10, 15…) : une créature nommée, plus forte (ex. « Grokk, chef
-  gobelours » à partir du Gobelours avec plus de PV, ou un monstre du SRD : Ogre, Owlbear, Minotaur),
-  avec un ou deux sbires. Raconte-le avec un peu plus d'emphase. C'est salle_suivante qui annonce la salle
-  du boss (type « boss ») : ce jour-là, pas de rencontre ordinaire.
-- BUTIN après les combats : or (modifier_or, 5 à 30 po × étage), potions de soins (gerer_inventaire,
-  « Potion de soins » : boire = modifier_pv_joueur soin 2d4+2), parfois une arme ou un objet magique
-  du SRD après un boss. Donne l'XP des combats avec fin_combat (automatique).
-- REPOS : quand salle_suivante l'indique (sanctuaire en début d'étage, feu de camp après un boss),
-  propose le repos dans les CHOIX ; ne fais reposer le personnage que s'il le choisit.
+    intro: "Commence la partie : le personnage se tient au bord du Gouffre aux Mille Marches, au fond d'une ruine envahie de lierre. Décris brièvement l'escalier qui s'enfonce dans le noir, puis appelle explorer (sans direction) et mets en scène le palier du premier étage et ses sorties.",
+    notes_mj: `MODE DONJON (« dungeon crawler ») : le plan du donjon est GÉNÉRÉ PAR LE MOTEUR, 5 étages à la fois.
+Chaque étage est un ensemble de salles reliées par des sorties (nord, sud, est, ouest), avec un thème, des
+ennemis, pièges, trésors, parfois un sanctuaire, et un escalier. Le 5e étage de chaque section a un boss.
+Tu ne fais que mettre en scène ce que le moteur renvoie : n'invente ni salles, ni sorties, ni ennemis.
+- Récit COURT : 40 à 100 mots par réponse ; 2-3 phrases d'ambiance par salle selon le thème de l'étage.
+- DÉPLACEMENTS : quand le joueur choisit une sortie, appelle explorer avec la direction. Le moteur lance
+  lui-même le combat prévu (ennemis déjà créés : ne rappelle PAS commencer_combat) ou applique le piège.
+- COMBAT : joue les tours des ennemis avec attaque_ennemi, puis fin_combat à la fin (la salle devient sûre).
+- FOUILLE : si une salle cache un trésor, propose de fouiller (outil fouiller, butin ajouté automatiquement).
+- ESCALIER : dans la salle de l'escalier (ou après le boss), propose de descendre (outil descendre).
+- REPOS : repos court possible partout hors combat ; repos long seulement dans un sanctuaire ou après le boss.
+- CHOIX : propose les sorties connues (« Je prends la porte nord »), fouiller, descendre, se reposer ou
+  boire une potion selon la situation. Potion de soins : gerer_inventaire (retirer) puis modifier_pv_joueur
+  soin 2d4+2 (potion de soins supérieurs : 4d4+4).
 - Si le personnage meurt, raconte une fin héroïque en indiquant l'étage atteint (son record).`,
   },
   libre: {

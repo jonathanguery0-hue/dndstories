@@ -706,8 +706,10 @@ function rendrePanneau() {
   rendreBandeauCombat(p);
   const titre = REGLES.scenarios[PARTIE.scenario]?.titre ?? "";
   const d = PARTIE.donjon;
-  $("#titre-aventure").textContent = d ? `${titre} · Étage ${d.etage}, salle ${d.salle}` : titre;
-  $("#titre-aventure").title = d ? `Record : étage ${d.record}` : "";
+  const etageCourant = d?.position ? Number(d.position.split("-")[0]) : null;
+  $("#titre-aventure").textContent = etageCourant ? `${titre} · Étage ${etageCourant}` : titre;
+  $("#titre-aventure").title = d?.record ? `Record : étage ${d.record}` : "";
+  rendreCarteDonjon();
 
   const combat = $("#combat");
   if (PARTIE.combat) {
@@ -729,6 +731,92 @@ $$(".onglets button").forEach((b) => b.addEventListener("click", () => {
   $$(".onglets button").forEach((x) => x.classList.toggle("actif", x === b));
   $$(".onglet").forEach((o) => o.classList.toggle("cache", o.id !== `onglet-${b.dataset.onglet}`));
 }));
+
+// ------------------------------------------------------------------ carte du donjon
+
+// Pistes de la grille : salles (34 px) et couloirs (12 px) en alternance.
+const pistes = (n) => Array.from({ length: n }, (_, i) => (i % 2 === 0 ? "34px" : "12px")).join(" ");
+
+const ICONES_SALLES = {
+  entree: "🚪", combat: "⚔️", boss: "👑", tresor: "💰", piege: "⚠️", calme: "·", sanctuaire: "⛩️", escalier: "⬇️",
+};
+
+/** Mini-carte de l'étage : salles visitées, portes vers l'inconnu, salle actuelle ; clic = s'y rendre. */
+function rendreCarteDonjon() {
+  const zone = $("#carte-donjon");
+  const d = PARTIE.donjon;
+  if (PARTIE.scenario !== "donjon" || !d?.position) {
+    zone.classList.add("cache");
+    return;
+  }
+  const etage = Number(d.position.split("-")[0]);
+  const plan = d.etages[etage];
+  const ici = plan.salles[d.position];
+  const visibles = new Map();
+  for (const salle of Object.values(plan.salles)) {
+    if (!salle.visitee) continue;
+    visibles.set(salle.id, salle);
+    for (const id of Object.values(salle.sorties)) if (!visibles.has(id)) visibles.set(id, plan.salles[id]);
+  }
+  const xs = [...visibles.values()].map((s) => s.x);
+  const ys = [...visibles.values()].map((s) => s.y);
+  const [minX, minY] = [Math.min(...xs), Math.min(...ys)];
+  const largeur = (Math.max(...xs) - minX) * 2 + 1;
+  const hauteur = (Math.max(...ys) - minY) * 2 + 1;
+  const accessibles = Object.fromEntries(Object.entries(ici.sorties).map(([dir, id]) => [id, dir]));
+  const cases = [];
+  for (const salle of visibles.values()) {
+    const col = (salle.x - minX) * 2 + 1;
+    const lig = (salle.y - minY) * 2 + 1;
+    const dir = accessibles[salle.id];
+    let icone = "❔";
+    let classe = "inconnue";
+    if (salle.visitee) {
+      classe = salle.id === ici.id ? "ici" : "visitee";
+      icone = salle.type === "combat" && salle.nettoyee ? "✔️"
+        : salle.type === "boss" && salle.nettoyee ? "💀"
+          : salle.type === "tresor" && salle.tresor?.pris ? "▫️" : ICONES_SALLES[salle.type] ?? "·";
+    }
+    const titre = salle.visitee ? salle.nom : "Salle inexplorée";
+    cases.push(`<button type="button" class="salle-carte ${classe}" style="grid-column:${col};grid-row:${lig}"
+      ${dir && !PARTIE.combat ? `data-direction="${dir}"` : "disabled"} title="${echapper(dir ? `${titre} — aller au ${dir}` : titre)}">${icone}</button>`);
+    if (salle.visitee) {
+      for (const [direction, id] of Object.entries(salle.sorties)) {
+        if (direction !== "est" && direction !== "sud") continue;
+        const autre = plan.salles[id];
+        if (!visibles.has(id) || Math.abs(autre.x - salle.x) + Math.abs(autre.y - salle.y) !== 1) continue;
+        cases.push(`<span class="couloir ${direction === "est" ? "h" : "v"}" style="grid-column:${col + (direction === "est" ? 1 : 0)};grid-row:${lig + (direction === "sud" ? 1 : 0)}"></span>`);
+      }
+    }
+  }
+  const sur = !PARTIE.combat && !(ici.ennemis && !ici.nettoyee);
+  const peutDescendre = sur && (ici.type === "escalier" || (ici.type === "boss" && ici.nettoyee));
+  zone.innerHTML = `
+    <div class="entete-carte"><span>🗺️ Étage ${etage}</span><small>${echapper(plan.theme)}</small></div>
+    <div class="grille-carte" style="grid-template-columns:${pistes(largeur)};grid-template-rows:${pistes(hauteur)}">${cases.join("")}</div>
+    <div class="ici-carte">📍 ${echapper(ici.nom)} · record : étage ${d.record}</div>
+    <div class="actions-carte">
+      ${sur ? '<button type="button" class="action-combat" data-donjon="fouiller">🔍 Fouiller</button>' : ""}
+      ${peutDescendre ? '<button type="button" class="action-combat" data-donjon="descendre">⬇️ Descendre</button>' : ""}
+    </div>`;
+  zone.classList.remove("cache");
+}
+
+$("#carte-donjon").addEventListener("click", (e) => {
+  if (enAttente) return;
+  const salle = e.target.closest("[data-direction]");
+  const action = e.target.closest("[data-donjon]");
+  if (salle) {
+    fermerPanneau();
+    envoyer(`Je prends la sortie ${salle.dataset.direction}.`, { outil: "explorer", args: { direction: salle.dataset.direction } });
+  } else if (action?.dataset.donjon === "fouiller") {
+    fermerPanneau();
+    envoyer("Je fouille la salle.", { outil: "fouiller", args: {} });
+  } else if (action?.dataset.donjon === "descendre") {
+    fermerPanneau();
+    envoyer("Je descends l'escalier vers l'étage suivant.", { outil: "descendre", args: {} });
+  }
+});
 
 // ------------------------------------------------------------------ bandeau de combat
 
@@ -877,7 +965,7 @@ async function envoyer(texte, actionDirecte = null) {
   if (texte) {
     h.insertAdjacentHTML("beforeend", rendreEntree({ type: "joueur", texte }));
     h.scrollTop = h.scrollHeight;
-    $$("#choix-ia button, #bandeau-combat button").forEach((b) => { b.disabled = true; });
+    $$("#choix-ia button, #bandeau-combat button, #carte-donjon button").forEach((b) => { b.disabled = true; });
     $$("[data-capacite]").forEach((b) => { b.disabled = true; });
   }
   try {
