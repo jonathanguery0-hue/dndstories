@@ -236,6 +236,7 @@ function ouvrirReglages() {
   const prefsDes = chargerPreferencesDes();
   $("#des-manuels").checked = prefsDes.manuel;
   $("#des-son").checked = prefsDes.son;
+  $("#des-karma").value = String(prefsDes.karma ?? 2);
   $("#section-voix").classList.toggle("cache", !voix.voixDisponible());
   if (voix.voixDisponible()) {
     remplirVoix();
@@ -295,7 +296,7 @@ $("#enregistrer-reglages").addEventListener("click", (e) => {
   e.preventDefault();
   try {
     CONFIG = stockage.enregistrerConfig(valeursReglages());
-    enregistrerPreferencesDes({ manuel: $("#des-manuels").checked, son: $("#des-son").checked });
+    enregistrerPreferencesDes({ manuel: $("#des-manuels").checked, son: $("#des-son").checked, karma: Number($("#des-karma").value) });
     if (voix.voixDisponible()) {
       voix.enregistrerPreferences(preferencesVoixFormulaire());
     }
@@ -779,7 +780,7 @@ async function envoyer(texte, actionDirecte = null) {
     // On joue le tour sur une copie : en cas d'erreur, la partie reste intacte et on peut réessayer.
     const copie = structuredClone(PARTIE);
     await jouerTour(copie, texte.slice(0, 2000), appeler, actionDirecte,
-      { demanderJet: chargerPreferencesDes().manuel ? demanderJet : null });
+      { demanderJet: chargerPreferencesDes().manuel ? demanderJet : null, seuilKarma: Number(chargerPreferencesDes().karma) || 0 });
     try { await condenserMemoire(copie, appeler); } catch { /* on réessaiera au prochain tour */ }
     PARTIE = copie;
     if (!actionDirecte) $("#action").value = "";

@@ -359,11 +359,12 @@ function messageAssistant(msg) {
  * Modifie `partie` directement : l'appelant travaille sur une copie et ne la garde qu'en cas de succès.
  * Un texteJoueur vide sert au tout premier tour (introduction de l'aventure).
  */
-export async function jouerTour(partie, texteJoueur, appeler, actionDirecte = null, { demanderJet = null } = {}) {
+export async function jouerTour(partie, texteJoueur, appeler, actionDirecte = null, { demanderJet = null, seuilKarma = 0 } = {}) {
   await chargerRegles(); // SRD local : sans lui (hors connexion), le jeu continue normalement
   const sc = SCENARIOS[partie.scenario] ?? SCENARIOS.libre;
   let messageJoueur = texteJoueur || `[Début de la partie] ${sc.intro}`;
   const moteur = new Moteur(partie);
+  moteur.seuilKarma = seuilKarma;
   if (actionDirecte) {
     // Action cliquée dans la fiche : le moteur l'applique tout de suite, l'IA n'a plus qu'à la raconter.
     const resultat = await moteur.executerAvecJets(actionDirecte.outil, actionDirecte.args, demanderJet);

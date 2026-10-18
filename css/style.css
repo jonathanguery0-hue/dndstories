@@ -294,6 +294,8 @@ summary { cursor: pointer; color: var(--discret); }
   border-radius: 16px; padding: 1.4rem 1.2rem 1.2rem; box-shadow: 0 10px 50px rgba(0, 0, 0, .6);
 }
 .plateau-titre { font-family: "Cinzel", Georgia, serif; color: var(--or); font-size: 1.15rem; margin: 0 0 .2rem; }
+.plateau.karma .plateau-carte { border-color: #b48cff; box-shadow: 0 10px 50px rgba(0, 0, 0, .6), 0 0 30px rgba(180, 140, 255, .35); }
+.plateau.karma .plateau-info { color: #cbb2ff; }
 .plateau-info { color: var(--discret); font-size: .9rem; margin: 0 0 1rem; min-height: 1.2em; }
 .plateau-zone { display: flex; justify-content: center; gap: 1.2rem; margin: .4rem 0 1rem; perspective: 600px; }
 .d20 {

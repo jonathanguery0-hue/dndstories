@@ -16,6 +16,7 @@ Rien à installer : ça marche sur ordinateur, tablette et téléphone.
 - 📜 **Fiche toujours à jour** : PV, CA, attaques, sorts, inventaire, or, XP et niveaux.
 - 🎲 **Tu lances tes dés** : pour tes tests, attaques, sauvegardes et ton initiative, la partie s'arrête et tu lances toi-même ton d20 à l'écran (animation, bruit de dés, vibration). Le jeu applique ensuite les règles : l'IA ne peut ni tricher ni « oublier » tes PV.
 - ⚔️ **Combats** : initiative, attaques, sorts, ennemis avec barres de vie, jets contre la mort.
+- ✨ **Dé karmique** : après 2 échecs d'affilée, ton prochain d20 est lancé avec l'avantage (deux dés, on garde le meilleur) jusqu'à ta prochaine réussite. Réglable (léger, normal, généreux) ou désactivable dans ⚙️.
 - 🗺️ **Trois aventures** : *Les Ombres de Brumesaule* (enquête et nécromancie), *La Caravane de l'Aube* (voyage et complot), ou une **aventure libre** improvisée.
 - 📖 **Le SRD 5.1 complet embarqué** : le MJ consulte les vraies règles, les 319 sorts, les 334 monstres et les objets magiques au lieu d'improviser, et peut faire combattre n'importe quel monstre du SRD.
 - 🔊 **Lecteur vocal** : le maître du jeu lit ses réponses à voix haute (bouton **Voix**) avec une **voix IA naturelle** d'OpenAI (≈ 1,5 centime par minute écoutée) ou la voix gratuite de l'appareil.

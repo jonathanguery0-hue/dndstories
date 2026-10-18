@@ -168,6 +168,16 @@
     <h3>🎲 Dés</h3>
     <label class="case"><input type="checkbox" id="des-manuels"> Lancer moi-même mes d20 (tests, attaques, sauvegardes)</label>
     <label class="case"><input type="checkbox" id="des-son"> Bruit des dés</label>
+    <label>✨ Dé karmique
+      <select id="des-karma">
+        <option value="0">Désactivé (hasard pur)</option>
+        <option value="3">Léger : avantage après 3 échecs d'affilée</option>
+        <option value="2">Normal : avantage après 2 échecs d'affilée</option>
+        <option value="1">Généreux : avantage après chaque échec</option>
+      </select>
+    </label>
+    <p class="aide">Après une série d'échecs, ton prochain d20 est lancé avec l'avantage (deux dés, on garde le
+      meilleur), jusqu'à ta prochaine réussite. Ça aide sans jamais garantir la réussite.</p>
 
     <div id="section-voix" class="cache">
       <h3>🔊 Voix du maître du jeu</h3>

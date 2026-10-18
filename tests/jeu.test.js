@@ -455,3 +455,30 @@ test("le maître du jeu propose 2 ou 3 actions, retirées du récit", async () =
   assert.deepEqual(mj.extraireChoix("Récit sans choix.").choix, []);
   assert.deepEqual(mj.extraireChoix("Récit\n**CHOIX :** 1. « J'attaque » | 2. Je fuis").choix, ["J'attaque", "Je fuis"]);
 });
+
+test("dé karmique : avantage après 2 échecs d'affilée, jusqu'à la prochaine réussite", async () => {
+  const partie = nouvellePartie(guerrier(), "libre");
+  const m = new Moteur(partie);
+  m.seuilKarma = 2;
+  const jets = [];
+  const lancer = (valeurs) => async (jet) => { jets.push(jet); return valeurs.splice(0, jet.nombre); };
+  const test = (valeurs) => m.executerAvecJets("jet_de_test", { type: "competence", nom: "Athlétisme", dd: 18 }, lancer(valeurs));
+  await test([3]); // échec 1
+  await test([5]); // échec 2
+  assert.equal(partie.karma_echecs, 2);
+  const r3 = await test([4, 9]); // karma : 2 dés, on garde 9 → encore un échec
+  assert.equal(jets[2].nombre, 2);
+  assert.ok(jets[2].karma && jets[2].avantage);
+  assert.equal(r3.total, 9 + 4);
+  assert.match(m.evenements.at(-1).texte, /karma/);
+  const r4 = await test([2, 17]); // toujours le karma → 17 + 4 = 21, réussite
+  assert.ok(r4.reussite);
+  assert.equal(partie.karma_echecs, 0);
+  await test([10]); // retour au hasard normal : un seul dé
+  assert.equal(jets.at(-1).nombre, 1);
+  // Désactivé : jamais d'avantage karmique.
+  m.seuilKarma = 0;
+  partie.karma_echecs = 5;
+  await test([1]);
+  assert.equal(jets.at(-1).nombre, 1);
+});

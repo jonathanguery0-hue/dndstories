@@ -85,6 +85,7 @@ export class Moteur {
     this.partie = partie;
     this.evenements = [];
     this.interactif = false; // vrai : les d20 du joueur sont lancés par le joueur lui-même
+    this.seuilKarma = 0;     // dé karmique : après ce nombre d'échecs d'affilée, avantage (0 = désactivé)
     this.d20Imposes = [];    // résultats déjà lancés par le joueur, consommés dans l'ordre
   }
 
@@ -99,6 +100,12 @@ export class Moteur {
    * un lancer (BesoinDeJet). `jet` décrit le lancer pour l'affichage : libelle, bonus, seuil, nomSeuil.
    */
   d20Joueur(avantage = false, desavantage = false, jet = {}) {
+    // Dé karmique : après plusieurs échecs d'affilée, la chance tourne (avantage jusqu'à la prochaine réussite).
+    const karma = this.karmaActif() && !avantage;
+    if (karma) {
+      avantage = true;
+      jet = { ...jet, karma: true, libelle: `✨ ${jet.libelle ?? "Jet"}` };
+    }
     if (avantage && desavantage) avantage = desavantage = false;
     const tirer = (nombre, details) => {
       if (!this.interactif) return Array.from({ length: nombre }, () => des.d(20));
@@ -111,6 +118,7 @@ export class Moteur {
     const r = {
       resultat: avantage ? Math.max(...lances) : desavantage ? Math.min(...lances) : lances[0],
       des: lances,
+      karma: karma && !desavantage,
     };
     // Chanceux (halfelin) : un 1 naturel est relancé.
     if (this.perso.race === "Halfelin pied-léger" && r.resultat === 1) {
@@ -123,7 +131,17 @@ export class Moteur {
   }
 
   static desTxt(r) {
-    return `d20 [${r.des.join(", ")}]` + (r.chanceux ? " (Chanceux : 1 relancé)" : "");
+    return `d20 [${r.des.join(", ")}]` + (r.chanceux ? " (Chanceux : 1 relancé)" : "")
+      + (r.karma ? " (✨ karma : avantage après plusieurs échecs)" : "");
+  }
+
+  karmaActif() {
+    return this.seuilKarma > 0 && (this.partie.karma_echecs ?? 0) >= this.seuilKarma;
+  }
+
+  /** Retient l'issue d'un jet du joueur pour le dé karmique. */
+  noterIssue(reussi) {
+    this.partie.karma_echecs = reussi ? 0 : Math.min((this.partie.karma_echecs ?? 0) + 1, 20);
   }
 
   ennemi(ref) {
@@ -258,6 +276,7 @@ export class Moteur {
     if (dd) {
       res.dd = dd;
       res.reussite = total >= dd;
+      this.noterIssue(res.reussite);
       txt += ` vs DD ${dd} → ${total >= dd ? "Réussite" : "Échec"}`;
     }
     if (r.resultat === 20 || r.resultat === 1) res.naturel = r.resultat;
@@ -346,6 +365,7 @@ export class Moteur {
     const total = r.resultat + bonus;
     const critique = r.resultat === 20;
     const touche = critique || (r.resultat !== 1 && total >= e.ca);
+    this.noterIssue(touche);
     let txt = `Attaque (${a.nom}) contre ${e.id} : ${Moteur.desTxt(r)} ${signe(bonus)} = ${total} vs CA ${e.ca}`;
     const res = { arme: a.nom, cible: e.id, jet: total, ca_cible: e.ca, touche, critique };
     if (!touche) {
@@ -459,7 +479,9 @@ export class Moteur {
           const total = r.resultat + bonus;
           const crit = r.resultat === 20;
           const debut = `${e.id} : ${Moteur.desTxt(r)} ${signe(bonus)} = ${total} vs CA ${e.ca} → `;
-          if (crit || (r.resultat !== 1 && total >= e.ca)) {
+          const reussi = crit || (r.resultat !== 1 && total >= e.ca);
+          this.noterIssue(reussi);
+          if (reussi) {
             let f = formule("degats");
             if (crit) f = doublerDes(f);
             const rd = roll(f);
@@ -603,6 +625,7 @@ export class Moteur {
     const r = this.d20Joueur(false, false,
       { libelle: `Jet contre la mort (${m.succes} ✓ / ${m.echecs} ✗)`, bonus: 0, seuil: 10, nomSeuil: "réussite à" });
     const v = r.resultat;
+    this.noterIssue(v >= 10);
     let txt;
     if (v === 20) {
       p.pv = 1;

@@ -8,9 +8,9 @@ const DUREE_ROULEMENT = 1000; // ms
 
 export function chargerPreferencesDes() {
   try {
-    return { manuel: true, son: true, ...JSON.parse(localStorage.getItem(CLE) ?? "{}") };
+    return { manuel: true, son: true, karma: 2, ...JSON.parse(localStorage.getItem(CLE) ?? "{}") };
   } catch {
-    return { manuel: true, son: true };
+    return { manuel: true, son: true, karma: 2 };
   }
 }
 
@@ -105,7 +105,8 @@ export async function lancerAuPlateau(jet) {
   const infos = [];
   if (jet.bonus) infos.push(`bonus ${signe(jet.bonus)}`);
   if (jet.seuil != null) infos.push(`${jet.nomSeuil ?? "DD"} ${jet.seuil}`);
-  if (jet.avantage) infos.push("avantage : on garde le meilleur");
+  if (jet.karma) infos.push("✨ karma : après plusieurs échecs, la chance tourne — avantage, on garde le meilleur");
+  else if (jet.avantage) infos.push("avantage : on garde le meilleur");
   if (jet.desavantage) infos.push("désavantage : on garde le pire");
   $("#plateau-info").textContent = infos.join(" · ");
   $("#plateau-resultat").textContent = "";
@@ -114,6 +115,7 @@ export async function lancerAuPlateau(jet) {
     `<button type="button" class="d20" aria-label="Lancer le d20">${SVG_D20}<span class="valeur">?</span></button>`).join("");
   bouton.textContent = nombre > 1 ? "🎲 Lancer les dés" : "🎲 Lancer le dé";
   bouton.disabled = false;
+  plateau.classList.toggle("karma", Boolean(jet.karma));
   plateau.classList.remove("cache");
   bouton.focus();
 
