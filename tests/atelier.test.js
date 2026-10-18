@@ -91,3 +91,50 @@ test("atelier : import d'un fichier, champs manquants complétés, mauvais fichi
   s.couverture = "a";
   assert.deepEqual(Object.keys(modele.pourExport(s).images), ["a"]);
 });
+
+// ------------------------------------------------------------------ import d'un PDF
+
+import { assembler, lireJson, ordreDeLecture, recollerTexte } from "../js/atelier/import-pdf.js";
+
+test("import PDF : ordre de lecture en colonnes et texte recollé", () => {
+  const it = (str, x, y, width = str.length * 5, hasEOL = false) => ({ str, transform: [10, 0, 0, 10, x, y], width, hasEOL });
+  // Le fichier mélange les colonnes : droite d'abord, puis gauche.
+  const items = [it("Colonne", 320, 700), it("droite", 360, 700), it("un", 320, 688), it("deux", 320, 676), it("bas", 320, 600),
+    it("Titre", 40, 750), it("gauche", 40, 700), it("suite", 40, 688), it("A", 40, 600, 10), it("B", 50, 600, 10), it("C", 60, 560)];
+  const texte = recollerTexte(ordreDeLecture(items, 600));
+  assert.equal(texte, "Titre\n\ngauche\nsuite\n\nAB\n\nC\n\nColonne droite\nun\ndeux\n\nbas");
+  assert.equal(recollerTexte([it("Slynn", 40, 700, 25), it("Humanoïde", 70, 700)]), "Slynn Humanoïde");
+});
+
+test("import PDF : réponses de l'IA assemblées en scénario, avec images et fiches", () => {
+  assert.deepEqual(lireJson('Voici :\n```json\n{"type_page":"autre"}\n```'), { type_page: "autre" });
+  assert.throws(() => lireJson("pas de json"));
+  const images = { "pdf-p1-i1": "data:image/webp;base64,AA", "pdf-p1-i2": "data:image/webp;base64,BB", "pdf-p4-i1": "data:image/webp;base64,CC", inutile: "data:x" };
+  const s = assembler([
+    { type_page: "couverture", couverture: { prefixe: "One Shot", titre: "Le casse", niveau: "3", image: "pdf-p1-i1", logo: "pdf-p1-i2", mention: "Compatible 5e" } },
+    { type_page: "mot_mj", mot_mj: { titre: "Chère MJ,", texte: "Bienvenue" } },
+    { type_page: "contenu", nouvelle_partie: { titre: "Introduction" }, blocs: [
+      { type: "texte", texte: "Slynn recrute. Slynn ment." }, { type: "lire", texte: "« C'est ma tournée »" },
+      { type: "image", image: "pdf-p4-i1" }, { type: "image", image: "inconnue" }, { type: "bizarre", texte: "x" }] },
+    { type_page: "contenu", blocs: [{ type: "mj", texte: "Conseil" }] },
+    { type_page: "contenu", nouvelle_partie: { titre: "Partie 1" }, blocs: [{ type: "texte", texte: "Encore Slynn." }] },
+    { type_page: "pnj", pnj: [{ nom: "Slynn", ca: "12 (cuir)", pv: "27", caracs: { DEX: "15" },
+      actions: [{ nom: "Épée courte", texte: "+4 au toucher. Touché : 5 (1d6 + 2) dégâts perforants." }] }] },
+    { type_page: "aide", aide: { titre: "Ingrédients", texte: "Coeur de genode", manuscrit: true } },
+    { type_page: "licence" },
+  ], images, "fichier");
+  assert.equal(s.titre, "Le casse");
+  assert.equal(s.niveau, 3);
+  assert.equal(s.couverture, "pdf-p1-i1");
+  assert.deepEqual(s.parties.map((p) => p.titre), ["Introduction", "Partie 1"]);
+  assert.deepEqual(s.parties[0].blocs.map((b) => b.type), ["texte", "lire", "image", "mj"]);
+  // Première mention de chaque PNJ dans chaque partie : renvoi vers sa fiche.
+  assert.equal(s.parties[0].blocs[0].texte, "[[Slynn]] recrute. Slynn ment.");
+  assert.equal(s.parties[1].blocs[0].texte, "Encore [[Slynn]].");
+  assert.equal(s.pnj[0].ca, 12);
+  assert.equal(s.pnj[0].caracs.DEX, 15);
+  assert.deepEqual(s.pnj[0].combat, { attaque: 4, degats: "1d6+2", type_degats: "perforant", attaques: 1 });
+  assert.equal(s.aides[0].manuscrit, true);
+  assert.deepEqual(Object.keys(s.images).sort(), ["pdf-p1-i1", "pdf-p1-i2", "pdf-p4-i1"]);
+  assert.deepEqual(modele.verifier(modele.normaliser(JSON.parse(JSON.stringify(s)))), []);
+});

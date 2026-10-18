@@ -28,7 +28,8 @@ Rien à installer : ça marche sur ordinateur, tablette et téléphone.
 - ✍️ **Atelier de scénarios** (bouton sur l'accueil) : écris tes one-shots (parties, encadrés « à lire aux joueurs » et
   « note au MJ », fiches PNJ et monstres, aides de jeu, images), mets-les en page comme un vrai supplément et
   **enregistre-les en PDF** prêt à imprimer, puis **fais-les jouer par l'IA** maître du jeu en un clic. Export/import d'un
-  fichier pour écrire à plusieurs.
+  fichier pour écrire à plusieurs. **Import d'un PDF** déjà mis en page : le texte et les images sont lus dans le
+  navigateur, puis l'IA range chaque page (couverture, parties, encadrés, fiches PNJ, aides de jeu) sans réécrire le texte.
 
 ---
 
@@ -138,7 +139,8 @@ mensuelle** sur platform.openai.com → *Limits*.
     branché sur Vercel par le dossier `api/`
   - `app.js` : l'interface ; `sw.js` + `manifest.webmanifest` : installation comme application
   - `atelier/` : l'atelier de scénarios (`modele.js` structure et conversion en aventure jouable, `rendu.js` mise en
-    page du livret, `editeur.js` interface, `stockage.js` IndexedDB) ; pages `atelier.html` et `impression.html`
+    page du livret, `editeur.js` interface, `stockage.js` IndexedDB, `import-pdf.js` import d'un PDF avec
+    [pdf.js](https://mozilla.github.io/pdf.js/), licence Apache 2.0, chargé depuis unpkg) ; pages `atelier.html` et `impression.html`
     (mise en pages A4 avec [Paged.js](https://pagedjs.org), licence MIT, chargé depuis unpkg), style `css/livret.css`
 - **Tester en local** : `python3 -m http.server` à la racine puis ouvrir http://localhost:8000
 - **Tests automatiques** : `npm test` (Node.js 20 ou plus)

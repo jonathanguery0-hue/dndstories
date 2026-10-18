@@ -3,7 +3,10 @@
 import * as modele from "./modele.js";
 import { ancreDe, echapper, livret } from "./rendu.js";
 import * as base from "./stockage.js";
-import { enregistrerScenarioJeu, supprimerScenarioJeu } from "../stockage.js";
+import { importerPdf } from "./import-pdf.js";
+import { chargerConfig, enregistrerScenarioJeu, estConfigure, supprimerScenarioJeu } from "../stockage.js";
+import { clientOpenAI, clientServeur } from "../mj.js";
+import { SERVEUR_URL } from "../serveur.js";
 
 const $ = (s, el = document) => el.querySelector(s);
 const $$ = (s, el = document) => [...el.querySelectorAll(s)];
@@ -80,6 +83,39 @@ $("#importer-scenario").addEventListener("change", async (e) => {
     ouvrir(s.id);
   } catch (err) {
     $("#erreur-bibliotheque").textContent = err instanceof SyntaxError ? "Ce fichier est illisible (ce n'est pas un fichier de scénario)." : err.message;
+  }
+});
+
+// Import d'un livret PDF : lecture dans le navigateur, puis mise en forme page par page par l'IA du jeu.
+$("#importer-pdf").addEventListener("change", async (e) => {
+  const fichier = e.target.files[0];
+  e.target.value = "";
+  if (!fichier) return;
+  const erreur = $("#erreur-bibliotheque");
+  const etat = $("#progression-import");
+  erreur.textContent = "";
+  const config = chargerConfig();
+  if (!estConfigure(config)) {
+    erreur.textContent = "L'import utilise l'IA du jeu : entre d'abord ton code d'accès ou ta clé dans les Réglages ⚙️ du jeu.";
+    return;
+  }
+  if (!confirm("L'IA va lire ton PDF et le ranger dans l'atelier, page par page (environ 1 centime pour 2 à 3 pages). "
+    + "Elle recopie ton texte sans le modifier ; tu pourras tout relire et corriger ensuite. Continuer ?")) return;
+  const boutons = $$(".boutons-bibliotheque .bouton, .boutons-bibliotheque input");
+  boutons.forEach((b) => { b.disabled = true; });
+  try {
+    const appeler = config.mode === "serveur" ? clientServeur({ url: SERVEUR_URL, code: config.code }) : clientOpenAI(config);
+    const { scenario, pagesEnErreur } = await importerPdf(fichier, appeler, (texte) => { etat.textContent = `⏳ ${texte}`; });
+    await base.enregistrer(scenario);
+    etat.textContent = "";
+    if (pagesEnErreur) alert(`${pagesEnErreur} page(s) n'ont pas pu être mises en forme : leur texte brut est gardé dans un bloc marqué « À RANGER ».`);
+    await ouvrir(scenario.id);
+    aller("verif");
+  } catch (err) {
+    etat.textContent = "";
+    erreur.textContent = err.message;
+  } finally {
+    boutons.forEach((b) => { b.disabled = false; });
   }
 });
 
@@ -398,25 +434,6 @@ function deplacer(liste, i, delta) {
   return true;
 }
 
-function remplirCombat(n) {
-  const actions = [...n.actions, ...n.traits];
-  const attaque = actions.find((a) => /au toucher/i.test(a.texte));
-  if (!attaque) {
-    alert("Aucune action avec « +X au toucher » trouvée : remplis les champs à la main.");
-    return;
-  }
-  const bonus = attaque.texte.match(/([+-]\s*\d+)\s*au toucher/i);
-  const degats = attaque.texte.match(/\((\d+d\d+(?:\s*[+-]\s*\d+)?)\)\s*(?:dégâts?|points? de dégâts?)\s*([a-zéèêàç]+)?/i);
-  if (bonus) n.combat.attaque = Number(bonus[1].replace(/\s+/g, ""));
-  if (degats) {
-    n.combat.degats = degats[1].replace(/\s+/g, "");
-    if (degats[2]) n.combat.type_degats = degats[2].toLowerCase().replace(/s$/, "");
-  }
-  const multiples = actions.find((a) => /attaques? multiples/i.test(a.nom));
-  const nombre = { deux: 2, trois: 3, quatre: 4 }[multiples?.texte.match(/\b(deux|trois|quatre)\b/i)?.[1]?.toLowerCase()];
-  n.combat.attaques = multiples ? nombre ?? 2 : 1;
-}
-
 document.addEventListener("click", async (e) => {
   const b = e.target.closest("[data-action]");
   if (!b || !S) return;
@@ -487,7 +504,7 @@ document.addEventListener("click", async (e) => {
       modifie();
       return;
     case "remplir-combat":
-      remplirCombat(S.pnj[i]);
+      if (!modele.remplirCombat(S.pnj[i])) alert("Aucune action avec « +X au toucher » trouvée : remplis les champs à la main.");
       rendreFormulaire();
       modifie();
       return;

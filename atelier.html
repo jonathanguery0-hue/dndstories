@@ -31,8 +31,10 @@
       maître du jeu. Tout est enregistré dans ce navigateur : pense à exporter tes scénarios pour les garder ou les partager.</p>
     <div class="boutons-bibliotheque">
       <button type="button" class="bouton principal" id="nouveau-scenario">➕ Nouveau scénario</button>
-      <label class="bouton">📂 Importer un fichier<input type="file" id="importer-scenario" accept=".json,application/json" hidden></label>
+      <label class="bouton">📄 Importer un PDF<input type="file" id="importer-pdf" accept=".pdf,application/pdf" hidden></label>
+      <label class="bouton">📂 Importer un fichier de l'atelier<input type="file" id="importer-scenario" accept=".json,application/json" hidden></label>
     </div>
+    <p class="discret" id="progression-import" aria-live="polite"></p>
     <p class="erreur" id="erreur-bibliotheque" role="alert"></p>
     <div id="liste-scenarios" class="liste-scenarios"></div>
   </section>

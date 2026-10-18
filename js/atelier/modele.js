@@ -176,6 +176,27 @@ export function versScenarioJeu(scenario) {
   };
 }
 
+/**
+ * Déduit l'attaque type d'un PNJ de ses actions (« +4 au toucher … 5 (1d6 + 2) dégâts perforants »,
+ * « Attaques multiples … deux attaques »). Renvoie faux si aucune attaque n'est reconnue.
+ */
+export function remplirCombat(n) {
+  const actions = [...n.actions, ...n.traits];
+  const attaque = actions.find((a) => /au toucher/i.test(a.texte));
+  if (!attaque) return false;
+  const bonus = attaque.texte.match(/([+-]\s*\d+)\s*au toucher/i);
+  const degats = attaque.texte.match(/\((\d+d\d+(?:\s*[+-]\s*\d+)?)\)\s*(?:dégâts?|points? de dégâts?)\s*([a-zéèêàç]+)?/i);
+  if (bonus) n.combat.attaque = Number(bonus[1].replace(/\s+/g, ""));
+  if (degats) {
+    n.combat.degats = degats[1].replace(/\s+/g, "");
+    if (degats[2]) n.combat.type_degats = degats[2].toLowerCase().replace(/s$/, "");
+  }
+  const multiples = actions.find((a) => /attaques? multiples/i.test(a.nom));
+  const nombre = { deux: 2, trois: 3, quatre: 4 }[multiples?.texte.match(/\b(deux|trois|quatre)\b/i)?.[1]?.toLowerCase()];
+  n.combat.attaques = multiples ? nombre ?? 2 : 1;
+  return true;
+}
+
 /** Problèmes à corriger avant de publier ou de jouer (liste de phrases, vide si tout va bien). */
 export function verifier(scenario) {
   const s = scenario;
