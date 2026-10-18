@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Atelier de scénarios</title>
+<meta name="description" content="Écrire, mettre en page et jouer avec l'IA ses propres scénarios de jeu de rôle.">
+<meta name="theme-color" content="#1a140e">
+<link rel="icon" href="icones/icone-192.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@600;700&family=Crimson+Pro:ital,wght@0,400;0,600;1,400&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/atelier.css">
+</head>
+<body>
+<header class="barre">
+  <a class="marque-atelier" href="index.html" title="Retour au jeu">⚔️ <span>Contes &amp; Dragons</span></a>
+  <h1>✍️ Atelier de scénarios</h1>
+  <div class="actions-barre" id="actions-scenario" hidden>
+    <button type="button" class="bouton" id="bouton-bibliotheque" title="Mes scénarios">📚 <span>Mes scénarios</span></button>
+    <button type="button" class="bouton" id="bouton-exporter" title="Télécharger le fichier du scénario (à envoyer à un co-auteur)">💾 <span>Exporter</span></button>
+    <button type="button" class="bouton" id="bouton-pdf" title="Mettre en page et enregistrer en PDF">📄 <span>PDF</span></button>
+    <button type="button" class="bouton principal" id="bouton-jouer" title="Jouer ce scénario avec l'IA maître du jeu">▶️ <span>Jouer avec l'IA</span></button>
+  </div>
+  <span class="etat-sauvegarde" id="etat-sauvegarde" aria-live="polite"></span>
+</header>
+
+<main id="bibliotheque" class="bibliotheque">
+  <section class="carte">
+    <h2>Mes scénarios</h2>
+    <p class="discret">Écris tes one-shots, mets-les en page comme un vrai supplément (PDF prêt à imprimer) et fais-les jouer par l'IA
+      maître du jeu. Tout est enregistré dans ce navigateur : pense à exporter tes scénarios pour les garder ou les partager.</p>
+    <div class="boutons-bibliotheque">
+      <button type="button" class="bouton principal" id="nouveau-scenario">➕ Nouveau scénario</button>
+      <label class="bouton">📂 Importer un fichier<input type="file" id="importer-scenario" accept=".json,application/json" hidden></label>
+    </div>
+    <p class="erreur" id="erreur-bibliotheque" role="alert"></p>
+    <div id="liste-scenarios" class="liste-scenarios"></div>
+  </section>
+</main>
+
+<main id="editeur" class="editeur" hidden>
+  <nav class="structure" id="structure" aria-label="Structure du scénario"></nav>
+  <section class="formulaire" id="formulaire" aria-label="Édition"></section>
+  <section class="apercu" id="zone-apercu" aria-label="Aperçu du livret">
+    <iframe id="apercu" title="Aperçu du livret"></iframe>
+  </section>
+  <div class="onglets-mobiles" role="tablist">
+    <button type="button" data-vue="structure">🗂️ Plan</button>
+    <button type="button" data-vue="formulaire" class="actif">✏️ Écrire</button>
+    <button type="button" data-vue="apercu">👁️ Aperçu</button>
+  </div>
+</main>
+
+<script type="module" src="js/atelier/editeur.js"></script>
+</body>
+</html>

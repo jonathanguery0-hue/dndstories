@@ -88,7 +88,7 @@ export function listerParties() {
     if (!p?.personnage) continue;
     const perso = p.personnage;
     parties.push({
-      id: p.id, maj_le: p.maj_le, scenario: p.scenario,
+      id: p.id, maj_le: p.maj_le, scenario: p.scenario, titre_scenario: p.scenario_perso?.titre ?? null,
       nom: perso.nom, race: perso.race, classe: perso.classe, niveau: perso.niveau,
       consommation: p.consommation ?? null,
     });
@@ -103,4 +103,21 @@ export function validerImport(donnees) {
     && Array.isArray(donnees.journal) && typeof donnees.scenario === "string";
   if (!ok) throw new ErreurStockage("Ce fichier n'est pas une sauvegarde de Contes & Dragons.");
   return donnees;
+}
+
+// ---- scénarios de l'atelier, version jouable (texte seulement, sans les images du livret)
+
+const CLE_SCENARIOS = `${PREFIXE}scenarios-jeu`;
+
+/** Scénarios de l'atelier proposés au lancement d'une partie, par identifiant. */
+export const chargerScenariosJeu = () => lire(CLE_SCENARIOS) ?? {};
+
+export function enregistrerScenarioJeu(sc) {
+  ecrire(CLE_SCENARIOS, { ...chargerScenariosJeu(), [sc.id]: sc });
+}
+
+export function supprimerScenarioJeu(id) {
+  const tous = chargerScenariosJeu();
+  delete tous[id];
+  ecrire(CLE_SCENARIOS, tous);
 }

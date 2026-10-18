@@ -237,8 +237,11 @@ BESTIAIRE DISPONIBLE (modèles pour commencer_combat) : `;
  * Partie fixe des consignes (identique à chaque tour) : placée en tête, OpenAI la met en cache
  * et la facture beaucoup moins cher (jusqu'à -90 %) à partir du deuxième tour.
  */
+/** Aventure de la partie : intégrée au jeu, ou écrite dans l'atelier (copiée dans la sauvegarde). */
+export const scenarioDe = (partie) => partie.scenario_perso ?? SCENARIOS[partie.scenario] ?? SCENARIOS.libre;
+
 export function consignesFixes(partie) {
-  const sc = SCENARIOS[partie.scenario] ?? SCENARIOS.libre;
+  const sc = scenarioDe(partie);
   return [
     CONSIGNES + Object.entries(srd.MONSTRES).map(([n, m]) => `${n} (CA ${m.ca}, ${m.xp} XP)`).join(", "),
     `AVENTURE : ${sc.titre}\nNOTES SECRÈTES DU MJ :\n${sc.notes_mj}`,
@@ -441,7 +444,7 @@ function messageAssistant(msg) {
  */
 export async function jouerTour(partie, texteJoueur, appeler, actionDirecte = null, { demanderJet = null, seuilKarma = 0 } = {}) {
   await chargerRegles(); // SRD local : sans lui (hors connexion), le jeu continue normalement
-  const sc = SCENARIOS[partie.scenario] ?? SCENARIOS.libre;
+  const sc = scenarioDe(partie);
   let messageJoueur = texteJoueur || `[Début de la partie] ${sc.intro}`;
   const moteur = new Moteur(partie);
   moteur.seuilKarma = seuilKarma;

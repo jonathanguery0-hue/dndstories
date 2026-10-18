@@ -314,8 +314,10 @@ export class Moteur {
       const nom = groupe.nom || nomModele || "Ennemi";
       const nombre = Math.max(1, Math.min(Number(groupe.nombre) || 1, 12));
       // Bestiaire du jeu d'abord, puis les 300+ monstres du SRD complet (noms anglais : « Owlbear »).
-      const base = { ...(cleModele ? srd.MONSTRES[cleModele] : monstreSRD(nomModele) ?? {}) };
-      const attaques = base.multiattaque ? 2 : 1;
+      // PNJ et monstres du scénario de l'atelier, puis bestiaire du jeu, puis le SRD complet.
+      const duScenario = this.partie.scenario_perso?.bestiaire?.[minus(nomModele)];
+      const base = { ...(duScenario ?? (cleModele ? srd.MONSTRES[cleModele] : monstreSRD(nomModele)) ?? {}) };
+      const attaques = Number(base.attaques) || (base.multiattaque ? 2 : 1);
       delete base.nom;
       delete base.multiattaque;
       for (const cle of ["ca", "pv", "attaque", "degats", "type_degats", "arme", "sauvegarde", "dex", "xp"]) {

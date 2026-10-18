@@ -3,7 +3,7 @@ import * as srd from "./srd.js";
 import { SCENARIOS } from "./scenarios.js";
 import { NIVEAUX_DE_DEPART, creerPersonnage, mettreAJourPersonnage, sousClasse, vueFiche } from "./personnage.js";
 import { nouvellePartie, POTIONS } from "./moteur.js";
-import { clientOpenAI, clientServeur, condenserMemoire, extraireChoix, jouerTour, listerModeles, verifierCode } from "./mj.js";
+import { clientOpenAI, clientServeur, condenserMemoire, extraireChoix, jouerTour, listerModeles, scenarioDe, verifierCode } from "./mj.js";
 import { SERVEUR_URL } from "./serveur.js";
 import { chargerRegles } from "./regles.js";
 import * as stockage from "./stockage.js";
@@ -119,7 +119,7 @@ function chargerAccueil() {
     <div class="partie">
       <div class="infos">
         <strong>${echapper(p.nom)}</strong> — ${echapper(p.race)} ${echapper(p.classe)} niv. ${p.niveau}<br>
-        <small class="discret">${echapper(REGLES.scenarios[p.scenario]?.titre ?? p.scenario)} ·
+        <small class="discret">${echapper(p.titre_scenario ?? REGLES.scenarios[p.scenario]?.titre ?? p.scenario)} ·
           ${new Date(p.maj_le * 1000).toLocaleString("fr-FR")}${texteCout(p.consommation) ? ` · IA ${texteCout(p.consommation)}` : ""}</small>
       </div>
       <div class="actions">
@@ -338,10 +338,11 @@ const ETAPES = ["Race", "Classe", "Caractéristiques", "Compétences", "Identit�
 let etape = 0;
 let creation = null;
 
-function demarrerCreation() {
+function demarrerCreation(scenario = "brumesaule") {
+  const perso = stockage.chargerScenariosJeu()[scenario];
   creation = {
     race: null, classe: null, methode: "standard", valeurs: [...REGLES.tableau_standard],
-    affectation: {}, competences: [], nom: "", historique: "", apparence: "", scenario: "brumesaule", niveau: 1,
+    affectation: {}, competences: [], nom: "", historique: "", apparence: "", scenario, niveau: perso?.niveau_depart ?? 1,
   };
   etape = 0;
   afficherEcran("creation");
@@ -477,10 +478,13 @@ function rendreIdentite() {
 }
 
 function rendreAventure() {
-  const cartes = Object.entries(REGLES.scenarios).map(([id, s]) => `
-    <button class="choix ${creation.scenario === id ? "selection" : ""}" data-scenario="${id}">
+  const carte = (id, s) => `
+    <button class="choix ${creation.scenario === id ? "selection" : ""}" data-scenario="${echapper(id)}">
       <strong>${echapper(s.titre)}</strong><small>${echapper(s.accroche)}</small><small>${echapper(s.niveau)}</small>
-    </button>`).join("");
+    </button>`;
+  const perso = Object.entries(stockage.chargerScenariosJeu());
+  const cartes = Object.entries(REGLES.scenarios).map(([id, s]) => carte(id, s)).join("")
+    + (perso.length ? `</div><h3>✍️ Mes scénarios de l'atelier</h3><div class="choix-grille">${perso.map(([id, s]) => carte(id, s)).join("")}` : "");
   const niveaux = SCENARIOS_TOUS_NIVEAUX.includes(creation.scenario) ? `
     <h3>Niveau de départ</h3>
     <div class="choix-niveau">${NIVEAUX_DE_DEPART.map((n) => `
@@ -515,7 +519,10 @@ function brancherEtape() {
   }));
   zone.querySelectorAll("[data-scenario]").forEach((b) => b.addEventListener("click", () => {
     creation.scenario = b.dataset.scenario;
-    if (!SCENARIOS_TOUS_NIVEAUX.includes(creation.scenario)) creation.niveau = 1;
+    // Un scénario de l'atelier fixe son niveau (1, 3 ou 5) ; les aventures écrites partent du niveau 1.
+    const perso = stockage.chargerScenariosJeu()[creation.scenario];
+    if (perso) creation.niveau = perso.niveau_depart ?? 1;
+    else if (!SCENARIOS_TOUS_NIVEAUX.includes(creation.scenario)) creation.niveau = 1;
     afficherEtape();
   }));
   zone.querySelectorAll("[data-niveau]").forEach((b) => b.addEventListener("click", () => {
@@ -593,6 +600,9 @@ $("#etape-suivante").addEventListener("click", () => {
       niveau: creation.niveau, sous_classe: creation.sous_classe,
     });
     const partie = nouvellePartie(perso, creation.scenario);
+    // Scénario de l'atelier : copié dans la sauvegarde, la partie reste jouable même s'il est modifié ensuite.
+    const sc = stockage.chargerScenariosJeu()[creation.scenario];
+    if (sc) partie.scenario_perso = sc;
     stockage.sauvegarder(partie);
     ouvrirPartie(partie.id);
   } catch (err) {
@@ -617,7 +627,7 @@ function ouvrirPartie(id) {
   chargerRegles(); // préchargement du SRD pendant que le joueur lit
   history.replaceState(null, "", `${location.pathname}#${id}`);
   afficherEcran("jeu");
-  $("#titre-aventure").textContent = REGLES.scenarios[PARTIE.scenario]?.titre ?? "";
+  $("#titre-aventure").textContent = scenarioDe(PARTIE).titre ?? "";
   $("#erreur-jeu").textContent = "";
   rendreHistoire();
   rendrePanneau();
@@ -742,7 +752,7 @@ function rendrePanneau() {
   rendreStatutMobile(p);
   rendreBandeauCombat(p);
   rendreFinDePartie(p);
-  const titre = REGLES.scenarios[PARTIE.scenario]?.titre ?? "";
+  const titre = scenarioDe(PARTIE).titre ?? "";
   const d = PARTIE.donjon;
   const etageCourant = d?.position ? Number(d.position.split("-")[0]) : null;
   $("#titre-aventure").textContent = etageCourant ? `${titre} · Étage ${etageCourant}` : titre;
@@ -801,6 +811,7 @@ $("#fin-partie").addEventListener("click", (e) => {
     try {
       const perso = creerPersonnage(PARTIE.personnage.creation);
       const partie = nouvellePartie(perso, PARTIE.scenario);
+      if (PARTIE.scenario_perso) partie.scenario_perso = PARTIE.scenario_perso;
       stockage.sauvegarder(partie);
       ouvrirPartie(partie.id);
     } catch (err) {
@@ -1140,8 +1151,14 @@ $("#suggestions").addEventListener("click", (e) => {
 // ------------------------------------------------------------------ démarrage
 
 const idDepart = location.hash.slice(1);
+// Lien « Jouer avec l'IA » de l'atelier : création d'un héros, scénario déjà choisi.
+const scenarioDepart = new URLSearchParams(location.search).get("scenario");
 chargerAccueil();
 if (/^[0-9a-f]{12}$/.test(idDepart)) ouvrirPartie(idDepart);
+else if (scenarioDepart && stockage.chargerScenariosJeu()[scenarioDepart]) {
+  history.replaceState(null, "", location.pathname);
+  demarrerCreation(scenarioDepart);
+}
 
 // Installation comme application (écran d'accueil du téléphone, bureau de l'ordinateur).
 if ("serviceWorker" in navigator && location.protocol === "https:") {

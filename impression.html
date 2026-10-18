@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Livret — Atelier de scénarios</title>
+<style>
+  body { margin: 0; background: #5b4a36; font-family: "Segoe UI", system-ui, sans-serif; }
+  .barre-impression {
+    position: sticky; top: 0; z-index: 10; display: flex; flex-wrap: wrap; gap: 10px; align-items: center; justify-content: center;
+    padding: 10px 16px; background: #221a12; color: #f0e3c7; box-shadow: 0 2px 10px rgba(0, 0, 0, .4);
+  }
+  .barre-impression button { font: inherit; padding: 8px 16px; border-radius: 8px; border: 1px solid #d4a64a; cursor: pointer; }
+  .barre-impression .principal { background: #d4a64a; color: #221a12; font-weight: 700; }
+  .barre-impression .secondaire { background: transparent; color: #f0e3c7; }
+  .barre-impression small { opacity: .8; }
+  .pagedjs_pages { display: flex; flex-direction: column; align-items: center; gap: 16px; padding: 16px 0; }
+  .pagedjs_page { box-shadow: 0 4px 18px rgba(0, 0, 0, .45); }
+  #etat { color: #f0e3c7; text-align: center; padding: 40px 16px; }
+  @media print { .pagedjs_pages { display: block; padding: 0; } .pagedjs_page { box-shadow: none; } }
+</style>
+</head>
+<body>
+<div class="barre-impression">
+  <button type="button" class="principal" id="imprimer" disabled>🖨️ Enregistrer en PDF</button>
+  <button type="button" class="secondaire" id="fermer">← Retour à l'atelier</button>
+  <small>Dans la fenêtre d'impression, choisis « Enregistrer au format PDF », format A4, marges « Aucune », avec les graphiques d'arrière-plan.</small>
+</div>
+<p id="etat">Mise en page du livret…</p>
+<template id="source"></template>
+<div id="pages"></div>
+<script type="module">
+  import { charger } from "./js/atelier/stockage.js";
+  import { normaliser } from "./js/atelier/modele.js";
+  import { livret } from "./js/atelier/rendu.js";
+
+  const etat = document.getElementById("etat");
+  document.getElementById("fermer").addEventListener("click", () => {
+    if (history.length > 1) history.back(); else location.href = "atelier.html";
+  });
+  document.getElementById("imprimer").addEventListener("click", () => window.print());
+  try {
+    const id = decodeURIComponent(location.hash.slice(1));
+    const brut = id && await charger(id);
+    if (!brut) throw new Error("Scénario introuvable dans ce navigateur.");
+    const s = normaliser(brut);
+    document.title = `${s.titre} — livret`;
+    const source = document.getElementById("source");
+    source.innerHTML = livret(s);
+    window.PagedConfig = { auto: false };
+    const script = document.createElement("script");
+    script.src = "https://unpkg.com/pagedjs@0.4.3/dist/paged.polyfill.min.js";
+    script.onload = () => {
+      // Prêt seulement quand toutes les pages sont rendues (sinon le PDF serait incomplet).
+      class Fin extends window.Paged.Handler {
+        afterRendered(pages) {
+          etat.remove();
+          document.getElementById("imprimer").disabled = false;
+          document.getElementById("imprimer").textContent = `🖨️ Enregistrer en PDF (${pages.length} pages)`;
+          document.body.dataset.pret = "oui";
+        }
+      }
+      window.Paged.registerHandlers(Fin);
+      // Seul le livret est mis en pages (pas la barre d'outils).
+      new window.Paged.Previewer().preview(source.content, [new URL("css/livret.css", location.href).href], document.getElementById("pages"));
+    };
+    script.onerror = () => {
+      // Sans Paged.js (hors ligne) : impression directe par le navigateur, sans numéros au sommaire.
+      const feuille = document.createElement("link");
+      feuille.rel = "stylesheet";
+      feuille.href = "css/livret.css";
+      document.head.appendChild(feuille);
+      document.getElementById("pages").appendChild(source.content.cloneNode(true));
+      etat.textContent = "Mise en page avancée indisponible (hors ligne ?) : l'impression reste possible.";
+      document.getElementById("imprimer").disabled = false;
+      document.body.dataset.pret = "oui";
+    };
+    document.head.appendChild(script);
+  } catch (err) {
+    etat.textContent = err.message;
+  }
+</script>
+</body>
+</html>

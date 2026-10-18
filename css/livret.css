@@ -1,0 +1,137 @@
+/* Livret d'un scénario de l'atelier : style « parchemin », pour l'aperçu à l'écran et l'impression A4. */
+@import url("https://fonts.googleapis.com/css2?family=Amatic+SC:wght@700&family=IM+Fell+English:ital@0;1&family=IM+Fell+English+SC&family=Alegreya+Sans:ital,wght@0,400;0,700;1,400;1,700&family=Bree+Serif&family=Allura&display=swap");
+
+:root {
+  --papier: #efe2c3;
+  --encre: #3a2a1b;
+  --encre-douce: #5a4632;
+  --mj: #cdbda6;
+  --filet: #8a6b48;
+  --titre: "Amatic SC", "IM Fell English", Georgia, serif;
+  --corps: "IM Fell English", Georgia, serif;
+  --sc: "IM Fell English SC", "IM Fell English", Georgia, serif;
+  --sans: "Alegreya Sans", "Segoe UI", sans-serif;
+  --gras: "Bree Serif", Georgia, serif;
+  --manuscrit: "Allura", "Brush Script MT", cursive;
+  /* Grain du papier (bruit SVG) et taches aux bords. */
+  --grain: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='300' height='300'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='.8' numOctaves='3' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 .35  0 0 0 0 .25  0 0 0 0 .1  0 0 0 .09 0'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>");
+  --parchemin: var(--grain),
+    radial-gradient(ellipse at 50% 45%, rgba(255, 251, 238, .65) 0%, rgba(255, 251, 238, 0) 62%),
+    radial-gradient(circle at 0 0, rgba(140, 95, 40, .28), transparent 32%),
+    radial-gradient(circle at 100% 0, rgba(140, 95, 40, .22), transparent 30%),
+    radial-gradient(circle at 0 100%, rgba(140, 95, 40, .22), transparent 30%),
+    radial-gradient(circle at 100% 100%, rgba(140, 95, 40, .28), transparent 32%);
+}
+
+html { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+.livret { color: var(--encre); font-family: var(--corps); font-size: 10.5pt; line-height: 1.38; }
+.livret p { margin: 0 0 .6em; }
+.livret img { max-width: 100%; }
+.livret a { color: inherit; }
+.livret a.renvoi { text-decoration: underline; text-underline-offset: 2px; }
+.livret ul, .livret ol { margin: 0 0 .6em; padding-left: 1.3em; }
+.livret li { margin-bottom: .25em; }
+
+/* ---- Titres */
+.titre-couverture { font-family: var(--titre); font-size: 52pt; line-height: 1.05; text-align: center; margin: 4mm 0 8mm; letter-spacing: .02em; }
+.titre-scenario { font-family: var(--corps); font-style: italic; font-weight: 700; font-size: 24pt; margin: 0 0 1mm; }
+.titre-partie { font-family: var(--titre); font-size: 30pt; text-transform: uppercase; margin: 0 0 4mm; text-decoration: underline; text-decoration-thickness: 1px; text-underline-offset: 6px; }
+.titre-manuscrit, .titre-aide { font-family: var(--titre); font-size: 28pt; text-transform: uppercase; margin: 0 0 3mm; }
+.titre-aide { text-align: center; text-decoration: underline; text-decoration-thickness: 1px; }
+.titre-sommaire { font-family: var(--corps); font-style: italic; font-weight: 700; font-size: 24pt; margin: 6mm 0 4mm; }
+.intertitre { font-family: var(--gras); font-size: 12pt; text-transform: uppercase; letter-spacing: .03em; margin: 3mm 0 2mm; break-after: avoid; }
+
+/* ---- Corps de texte : petites capitales italiques comme dans les one-shots Forge-Fable */
+.colonnes, .mot-mj .deux-colonnes, .licence { font-variant: small-caps; font-style: italic; }
+.colonnes { column-count: 2; column-gap: 9mm; }
+.colonnes > * { break-inside: avoid-column; }
+.colonnes > p, .colonnes > ul, .colonnes > ol { break-inside: auto; }
+.saut-colonne { break-after: column; height: 0; }
+.deux-colonnes { display: grid; grid-template-columns: 1fr 1fr; gap: 9mm; }
+
+/* ---- Encadrés */
+.encadre { padding: 3mm 4mm; margin: 2mm 0 4mm; font-variant: normal; break-inside: avoid; }
+.encadre p:last-child, .encadre ul:last-child { margin-bottom: 0; }
+.encadre.lire { background: rgba(255, 255, 255, .92); text-align: center; font-family: var(--sc); font-style: italic; }
+.encadre.mj { background: var(--mj); font-family: var(--sans); font-style: italic; font-weight: 700; font-size: 9.5pt; text-align: left; }
+
+/* ---- Images */
+.illustration { margin: 2mm 0 4mm; text-align: center; break-inside: avoid; }
+.illustration img { max-height: 80mm; object-fit: contain; }
+.illustration.pleine-largeur img { max-height: 150mm; width: 100%; }
+.illustration figcaption { font-size: 8.5pt; color: var(--encre-douce); margin-top: 1mm; }
+.bandeau { display: block; width: 100%; max-height: 95mm; object-fit: cover; margin-bottom: 5mm; }
+
+/* ---- Couverture */
+.couverture { display: flex; flex-direction: column; align-items: center; text-align: center; }
+.image-couverture { width: 66%; max-height: 135mm; object-fit: cover; box-shadow: 0 1mm 3mm rgba(0, 0, 0, .25); }
+.accroche { font-family: var(--titre); font-size: 26pt; line-height: 1.1; margin: 6mm 0 1mm; }
+.niveau-couverture { font-family: var(--titre); font-size: 14pt; text-transform: uppercase; color: var(--encre-douce); }
+.pied-couverture { margin-top: auto; width: 100%; display: flex; justify-content: space-between; align-items: flex-end; }
+.marque { font-family: var(--gras); font-size: 11pt; }
+.logo { max-height: 18mm; max-width: 45mm; }
+.mention { font-family: var(--titre); font-size: 16pt; }
+
+/* ---- Mot au MJ, sommaire, licence */
+.signature { font-family: var(--gras); font-style: normal; }
+.a-savoir { font-family: var(--sc); font-weight: 400; text-decoration: underline; margin: 4mm 0 2mm; }
+.note-renvoi { font-size: 9.5pt; }
+.liste-sommaire { list-style: none; padding: 0; font-family: var(--gras); font-size: 12pt; }
+.liste-sommaire li { margin: 0 0 1.5mm; }
+.liste-sommaire a { display: flex; text-decoration: none; }
+.liste-sommaire a span { flex: 1; border-bottom: 1px solid var(--encre); }
+.liste-sommaire a::after { content: "Page " target-counter(attr(href url), page); text-decoration: underline; padding-left: 2mm; }
+.image-sommaire { display: block; margin: 12mm auto 0; max-height: 150mm; }
+.licence { font-size: 8.5pt; }
+.pied-licence { display: flex; justify-content: space-between; align-items: flex-end; margin-top: 10mm; font-family: var(--corps); font-size: 13pt; font-variant: normal; text-decoration: underline; }
+
+/* ---- Aides de jeu */
+.texte-aide { font-size: 12pt; }
+.texte-aide.manuscrit { font-family: var(--manuscrit); font-size: 34pt; line-height: 1.15; font-style: normal; }
+.image-aide { display: block; margin: 6mm auto 0; max-height: 210mm; }
+
+/* ---- Fiches PNJ et monstres */
+.pnj-liste .titre-partie { margin-bottom: 2mm; }
+.fiche-pnj { position: relative; display: grid; grid-template-columns: 1fr 1fr; gap: 6mm; padding: 3mm 0 5mm; break-inside: avoid; font-size: 8.5pt; }
+.fiche-pnj .filigrane { position: absolute; left: 12%; top: 0; height: 100%; max-width: 40%; object-fit: contain; opacity: .38; z-index: 0; }
+.fiche-gauche, .fiche-droite { position: relative; z-index: 1; }
+.nom-pnj { font-family: var(--corps); font-style: italic; font-weight: 700; font-size: 20pt; text-decoration: underline; text-decoration-thickness: 1px; margin: 0 0 1mm; }
+.type-pnj { font-family: var(--sans); font-weight: 700; margin: 0 0 1.5mm !important; }
+.description-pnj { font-style: italic; }
+.defenses, .info-pnj { font-variant: small-caps; margin-bottom: 1mm !important; }
+.caracs { border-collapse: collapse; margin: 1mm 0 2mm; font-variant: small-caps; }
+.caracs th, .caracs td { padding: 0 2mm; text-align: center; font-weight: 400; }
+.fiche-droite h3 { font-family: var(--sc); font-size: 11pt; margin: 0 0 1mm; }
+.fiche-droite p { font-variant: small-caps; }
+
+/* ---- Écran (aperçu dans l'atelier) : une carte par section, à la largeur d'une page A4 */
+@media screen {
+  body.apercu { margin: 0; padding: 16px; background: #5b4a36; }
+  .apercu .livret { display: flex; flex-direction: column; align-items: center; gap: 16px; }
+  .apercu .livret > section {
+    width: 210mm; min-height: 297mm; box-sizing: border-box; padding: 16mm 14mm 18mm;
+    background-color: var(--papier); background-image: var(--parchemin); box-shadow: 0 4px 18px rgba(0, 0, 0, .45);
+  }
+  .apercu .livret > .partie { min-height: 0; }
+  .apercu .couverture { height: 297mm; }
+  .apercu .liste-sommaire a::after { content: none; }
+  .apercu .surligne { outline: 3px solid #e8b04a; outline-offset: 6px; }
+}
+
+/* ---- Impression A4 (mise en pages par Paged.js) */
+@page {
+  size: A4;
+  margin: 16mm 14mm 18mm;
+  background-color: #efe2c3;
+  @bottom-center { content: counter(page); font-family: "Bree Serif", Georgia, serif; font-size: 10pt; color: #3a2a1b; }
+}
+/* Couverture : pleine page, non numérotée ; la numérotation commence au mot au MJ (page 1). */
+@page :first { margin: 0; @bottom-center { content: none; } }
+.pagedjs_page { background-color: var(--papier); background-image: var(--parchemin); }
+@media print {
+  body { margin: 0; }
+  .barre-impression { display: none !important; }
+}
+.couverture { height: 290mm; box-sizing: border-box; padding: 16mm 14mm 10mm; overflow: hidden; }
+.livret > section { break-before: page; }
+.livret > .couverture { break-before: auto; }

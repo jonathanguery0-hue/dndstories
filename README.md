@@ -25,6 +25,10 @@ Rien à installer : ça marche sur ordinateur, tablette et téléphone.
 - 📖 **Le SRD 5.1 complet embarqué** : le MJ consulte les vraies règles, les 319 sorts, les 334 monstres et les objets magiques au lieu d'improviser, et peut faire combattre n'importe quel monstre du SRD.
 - 🔊 **Lecteur vocal** : le maître du jeu lit ses réponses à voix haute (bouton **Voix**) avec une **voix IA naturelle** d'OpenAI (≈ 1,5 centime par minute écoutée) ou la voix gratuite de l'appareil.
 - 💾 **Sauvegarde automatique** dans ton navigateur, avec export/import pour changer d'appareil.
+- ✍️ **Atelier de scénarios** (bouton sur l'accueil) : écris tes one-shots (parties, encadrés « à lire aux joueurs » et
+  « note au MJ », fiches PNJ et monstres, aides de jeu, images), mets-les en page comme un vrai supplément et
+  **enregistre-les en PDF** prêt à imprimer, puis **fais-les jouer par l'IA** maître du jeu en un clic. Export/import d'un
+  fichier pour écrire à plusieurs.
 
 ---
 
@@ -133,6 +137,9 @@ mensuelle** sur platform.openai.com → *Limits*.
   - `serveur.js` : adresse du serveur du jeu ; le serveur lui-même est dans `serveur/worker.js`,
     branché sur Vercel par le dossier `api/`
   - `app.js` : l'interface ; `sw.js` + `manifest.webmanifest` : installation comme application
+  - `atelier/` : l'atelier de scénarios (`modele.js` structure et conversion en aventure jouable, `rendu.js` mise en
+    page du livret, `editeur.js` interface, `stockage.js` IndexedDB) ; pages `atelier.html` et `impression.html`
+    (mise en pages A4 avec [Paged.js](https://pagedjs.org), licence MIT, chargé depuis unpkg), style `css/livret.css`
 - **Tester en local** : `python3 -m http.server` à la racine puis ouvrir http://localhost:8000
 - **Tests automatiques** : `npm test` (Node.js 20 ou plus)
 
