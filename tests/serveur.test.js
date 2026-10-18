@@ -126,3 +126,25 @@ test("relais sur Vercel : adresses en /api et jeu hébergé à la même adresse"
   const pirate = await worker.fetch(new Request(`${site}/api/verifier`, { headers: { Referer: "https://pirate.example/" } }), env);
   assert.equal(pirate.status, 401);
 });
+
+test("limite anti-abus : compteurs séparés pour l'IA et la voix, temps d'attente indiqué", async () => {
+  const env = { OPENAI_API_KEY: "sk-secrete", LIMITE: "2", LIMITE_VOIX: "1" };
+  globalThis.fetch = async (url) => (String(url).includes("audio")
+    ? new Response(new Uint8Array([1]), { status: 200, headers: { "Content-Type": "audio/mpeg" } })
+    : new Response(JSON.stringify({ choices: [{ message: { content: "ok" } }] }), { status: 200 }));
+  const appel = (chemin, corps) => {
+    const r = requete(chemin, { corps });
+    r.headers.set("CF-Connecting-IP", "9.9.9.9");
+    return worker.fetch(r, env);
+  };
+  const chat = { messages: [{ role: "user", content: "x" }] };
+  const voix = { input: "Bonjour", voice: "onyx" };
+  assert.equal((await appel("/v1/chat/completions", chat)).status, 200);
+  assert.equal((await appel("/v1/audio/speech", voix)).status, 200); // la voix ne consomme pas la limite de l'IA
+  assert.equal((await appel("/v1/chat/completions", chat)).status, 200);
+  const trop = await appel("/v1/chat/completions", chat);
+  assert.equal(trop.status, 429);
+  assert.match((await trop.json()).error.message, /reprends ta partie dans 10 minutes/);
+  assert.equal((await appel("/v1/audio/speech", voix)).status, 429);
+  globalThis.fetch = fetchOrigine;
+});

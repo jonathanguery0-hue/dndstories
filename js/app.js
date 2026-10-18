@@ -3,7 +3,7 @@ import * as srd from "./srd.js";
 import { SCENARIOS } from "./scenarios.js";
 import { creerPersonnage, vueFiche } from "./personnage.js";
 import { nouvellePartie } from "./moteur.js";
-import { clientOpenAI, clientServeur, condenserMemoire, jouerTour, listerModeles, verifierCode } from "./mj.js";
+import { clientOpenAI, clientServeur, condenserMemoire, extraireChoix, jouerTour, listerModeles, verifierCode } from "./mj.js";
 import { SERVEUR_URL } from "./serveur.js";
 import { chargerRegles } from "./regles.js";
 import * as stockage from "./stockage.js";
@@ -593,7 +593,8 @@ function rendreEntree(entree, index = -1) {
   if (entree.type === "mj") {
     const bouton = voix.voixDisponible() && index >= 0
       ? `<button class="lire${voix.lectureEnCours() === index ? " lecture" : ""}" data-lire="${index}" title="Écouter" aria-label="Écouter">🔊</button>` : "";
-    return `<div class="mj">${bouton}${markdown(entree.texte)}</div>`;
+    // extraireChoix : nettoie aussi les anciennes réponses où la ligne « CHOIX: » était restée dans le récit.
+    return `<div class="mj">${bouton}${markdown(extraireChoix(entree.texte).texte)}</div>`;
   }
   if (entree.type === "joueur") return `<div class="joueur">${echapper(entree.texte)}</div>`;
   const classe = { systeme: "systeme", regle: "regle" }[entree.type] ?? "de";
@@ -963,7 +964,7 @@ if (/iPhone|iPad|iPod/.test(navigator.userAgent) && !dejaInstalle) $("#aide-ios"
 
 function lireEntree(index) {
   const entree = PARTIE?.affichage[index];
-  if (entree?.type === "mj") voix.lire(entree.texte, index);
+  if (entree?.type === "mj") voix.lire(extraireChoix(entree.texte).texte, index);
 }
 
 function majBoutonVoix() {

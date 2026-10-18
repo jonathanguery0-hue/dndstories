@@ -494,3 +494,10 @@ test("aventure donjon : disponible et transmise au maître du jeu", async () => 
   await mj.jouerTour(partie, "", appeler);
   assert.match(requetes[0].messages.at(-1).content, /Gouffre aux Mille Marches/);
 });
+
+test("la ligne CHOIX est retirée même écrite en fin de phrase ou plusieurs fois", () => {
+  const { texte, choix } = mj.extraireChoix("C'est ton tour. CHOIX: J'attaque | Je fuis\n\nTa lame frappe.\nTu es seul. CHOIX: J'achève le gobelin | Je recule | Je crie");
+  assert.equal(texte, "C'est ton tour.\n\nTa lame frappe.\nTu es seul.");
+  assert.deepEqual(choix, ["J'achève le gobelin", "Je recule", "Je crie"]);
+  assert.deepEqual(mj.extraireChoix("Tu as le choix : partir ou rester.").choix, []); // « choix » en minuscules : du récit
+});

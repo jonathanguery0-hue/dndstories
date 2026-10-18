@@ -41,8 +41,9 @@ ci-dessous), puis **Deployments → ⋯ → Redeploy** pour appliquer.
 Le serveur se protège déjà tout seul :
 
 - Il ne répond qu'au **site du jeu** : un autre site ne peut pas l'utiliser.
-- Chaque joueur est **limité** à 60 demandes toutes les 10 minutes (≈ 20 tours de jeu), largement
-  assez pour jouer, mais pas pour vider ton crédit avec un robot.
+- Chaque joueur est **limité** à 200 demandes à l'IA toutes les 10 minutes (un tour en fait souvent 2
+  à 4 : ≈ 50 tours), et 300 demandes de voix IA : largement assez pour jouer, mais pas pour vider ton
+  crédit avec un robot.
 - Il **impose le modèle** : personne ne peut choisir un modèle plus cher.
 
 Et la meilleure protection, de ton côté :
@@ -60,7 +61,8 @@ Et la meilleure protection, de ton côté :
 |---|---|---|
 | `MODELE` | ex. `gpt-5-mini` | le modèle utilisé pour tout le monde (par défaut `gpt-5-mini`) |
 | `MODELE_VOIX` | ex. `gpt-4o-mini-tts` | le modèle de la voix IA |
-| `LIMITE` | ex. `40` | demandes max par joueur toutes les 10 minutes (par défaut 60) |
+| `LIMITE` | ex. `300` | demandes à l'IA max par joueur toutes les 10 minutes (par défaut 200) |
+| `LIMITE_VOIX` | ex. `400` | demandes de voix IA max par joueur toutes les 10 minutes (par défaut 300) |
 | `CODES_ACCES` *(secret)* | `lea:lune-bleue-17,karim:forge-08` | **réserver** le jeu à des amis : un code devient obligatoire |
 | `ACCES_LIBRE` | `oui` | avec des codes, garder quand même le jeu ouvert (les codes donnent une limite plus haute) |
 | `ORIGINES` | `https://…` | autres sites autorisés (par défaut : le site GitHub Pages du jeu) |

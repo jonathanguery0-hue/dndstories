@@ -12,7 +12,8 @@
 //   MODELE          (texte)   le modèle utilisé pour tout le monde, ex. « gpt-5-mini »  — facultatif
 //   MODELE_VOIX     (texte)   le modèle de voix IA, ex. « gpt-4o-mini-tts »             — facultatif
 //   ORIGINES        (texte)   sites autorisés (par défaut : le site GitHub Pages du jeu) — facultatif
-//   LIMITE          (texte)   demandes max par joueur toutes les 10 minutes (défaut 60)  — facultatif
+//   LIMITE          (texte)   demandes à l'IA max par joueur toutes les 10 min (défaut 200) — facultatif
+//   LIMITE_VOIX     (texte)   demandes de voix IA max par joueur toutes les 10 min (déf. 300) — facultatif
 //   CODES_ACCES     (secret)  « prenom:code,prenom:code » pour réserver le jeu à des amis — facultatif
 //   ACCES_LIBRE     (texte)   « oui » pour garder le jeu ouvert même avec des codes      — facultatif
 
@@ -28,13 +29,17 @@ const CONSIGNES_VOIX = "Tu es le narrateur d'un jeu de rôle de fantasy. Parle e
 const TAILLE_MAX = 400_000; // caractères par requête : une partie normale en utilise bien moins
 const ORIGINE_PAR_DEFAUT = "https://jonathanguery0-hue.github.io";
 const FENETRE = 10 * 60 * 1000; // la limite de demandes se compte sur 10 minutes
-const LIMITE_DEFAUT = 60;       // ≈ 20 tours de jeu en 10 minutes : largement assez pour jouer normalement
+// Un tour de jeu fait souvent plusieurs demandes (une par action du moteur : attaque, riposte des
+// ennemis, récit…) : 200 demandes ≈ 50 tours en 10 minutes, bien plus qu'un joueur humain, mais un
+// robot qui tournerait en boucle est arrêté vite. La voix IA (2 à 4 demandes par réponse) a son propre compteur.
+const LIMITE_DEFAUT = 200;
+const LIMITE_VOIX_DEFAUT = 300;
 
 // Compteurs de demandes par joueur (en mémoire : une protection contre les abus, pas une comptabilité).
 const compteurs = new Map();
 
-/** Vrai si le joueur peut faire une demande de plus ; compte la demande. */
-function dansLaLimite(cle, limite, maintenant = Date.now()) {
+/** Compte la demande ; renvoie 0 si elle est permise, sinon le nombre de secondes à attendre. */
+function attenteAvantDemande(cle, limite, maintenant = Date.now()) {
   let c = compteurs.get(cle);
   if (!c || maintenant - c.debut > FENETRE) {
     c = { debut: maintenant, n: 0 };
@@ -44,7 +49,7 @@ function dansLaLimite(cle, limite, maintenant = Date.now()) {
   if (compteurs.size > 5000) {
     for (const [k, v] of compteurs) if (maintenant - v.debut > FENETRE) compteurs.delete(k);
   }
-  return c.n <= limite;
+  return c.n <= limite ? 0 : Math.ceil((FENETRE - (maintenant - c.debut)) / 1000);
 }
 
 export default {
@@ -92,14 +97,17 @@ export default {
     }
 
     if (joueur && (chemin === "/v1/chat/completions" || chemin === "/v1/audio/speech")) {
-      const limite = Number(env.LIMITE) || LIMITE_DEFAUT;
+      const voix = chemin === "/v1/audio/speech";
+      const limite = voix ? Number(env.LIMITE_VOIX) || LIMITE_VOIX_DEFAUT : Number(env.LIMITE) || LIMITE_DEFAUT;
       const ip = request.headers.get("CF-Connecting-IP") ?? request.headers.get("X-Real-IP")
         ?? request.headers.get("X-Forwarded-For")?.split(",")[0].trim() ?? "inconnue";
-      const cle = ami ? `ami:${ami}` : `ip:${ip}`;
-      if (!dansLaLimite(cle, ami ? limite * 2 : limite)) {
+      const cle = `${ami ? `ami:${ami}` : `ip:${ip}`}${voix ? ":voix" : ""}`;
+      const attente = attenteAvantDemande(cle, ami ? limite * 2 : limite);
+      if (attente) {
         console.log(`limite atteinte ${cle}`);
-        return erreur(429, "Doucement, aventurier ! Trop de demandes en peu de temps : fais une pause de "
-          + "quelques minutes, puis reprends ta partie.", "limite_atteinte");
+        const minutes = Math.max(1, Math.ceil(attente / 60));
+        return erreur(429, `Doucement, aventurier ! Trop de demandes en peu de temps (protection anti-abus) : `
+          + `reprends ta partie dans ${minutes} minute${minutes > 1 ? "s" : ""}.`, "limite_atteinte");
       }
     }
 

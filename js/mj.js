@@ -158,7 +158,8 @@ TON RÔLE
 - Le joueur décide de TOUTES les actions et paroles de son personnage. Ne les invente jamais à sa place.
 - Termine chaque réponse en laissant la main au joueur (situation claire). Ne liste pas de choix dans le \
 récit lui-même : ils vont dans la ligne CHOIX ci-dessous.
-- TOUTE réponse se termine par une dernière ligne exactement de ce format :
+- TOUTE réponse finale se termine par une dernière ligne, seule sur sa ligne et écrite une seule fois \
+(jamais dans un message qui appelle des outils), exactement de ce format :
 CHOIX: première action | deuxième action | troisième action
 avec 2 ou 3 actions courtes (8 mots maximum), écrites à la première personne comme si le joueur parlait \
 (« J'interroge l'aubergiste », « Je fouille la cave »), variées (prudente, audacieuse, sociale…) et \
@@ -419,17 +420,24 @@ export async function jouerTour(partie, texteJoueur, appeler, actionDirecte = nu
   return { narration: texteMj, choix, evenements: moteur.evenements };
 }
 
-/** Sépare le récit de la ligne « CHOIX: a | b | c » que le maître du jeu ajoute à la fin de sa réponse. */
+/**
+ * Sépare le récit des actions proposées « CHOIX: a | b | c ». L'IA peut l'écrire en fin de ligne,
+ * en gras, ou plusieurs fois dans une même réponse : toutes les occurrences sont retirées du récit,
+ * et la dernière donne les choix.
+ */
 export function extraireChoix(texte) {
-  const lignes = String(texte ?? "").split("\n");
-  const index = lignes.findLastIndex((l) => /^\s*[*_>#-]*\s*CHOIX\s*[*_]*\s*:/i.test(l));
-  if (index < 0) return { texte: String(texte ?? "").trim(), choix: [] };
-  const choix = lignes[index].replace(/^[^:]*:/, "").split("|")
+  const motif = /[*_]*\bCHOIX\b[*_\s]*:[*_\s]*([^\n]*)/g;
+  const source = String(texte ?? "");
+  let dernier = null;
+  for (const m of source.matchAll(motif)) dernier = m[1];
+  if (dernier === null) return { texte: source.trim(), choix: [] };
+  const choix = dernier.split("|")
     .map((c) => c.replace(/^[\s*_"«»“”\d.)-]+|[\s*_"«»“”]+$/g, "").trim())
     .filter((c) => c && c.length <= 120)
     .slice(0, 3);
-  lignes.splice(index, 1);
-  return { texte: lignes.join("\n").trim(), choix };
+  const nettoye = source.replace(motif, "").split("\n").map((l) => l.trimEnd()).join("\n")
+    .replace(/\n{3,}/g, "\n\n").trim();
+  return { texte: nettoye, choix };
 }
 
 /** Résume les plus anciens échanges pour que la conversation ne devienne pas trop longue. */
