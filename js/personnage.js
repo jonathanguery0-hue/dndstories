@@ -14,7 +14,7 @@ export function niveauPourXp(xp) {
   return niveau;
 }
 
-export function creerPersonnage({ nom, race, classe, caracs, competences, historique = "", apparence = "", niveau = 1 }) {
+export function creerPersonnage({ nom, race, classe, caracs, competences, historique = "", apparence = "", niveau = 1, sous_classe = null }) {
   nom = String(nom ?? "").trim();
   if (!nom) throw new Error("Le personnage doit avoir un nom.");
   if (!srd.RACES[race]) throw new Error(`Race inconnue : ${race}`);
@@ -43,11 +43,15 @@ export function creerPersonnage({ nom, race, classe, caracs, competences, histor
     throw new Error(`Choisissez ${k.nb_competences} compétences parmi celles du ${classe}.`);
   }
   for (const c of r.competences ?? []) if (!competences.includes(c)) competences.push(c);
+  const options = srd.SOUS_CLASSES[classe].options;
+  sous_classe ??= options[0].nom;
+  if (!options.some((o) => o.nom === sous_classe)) throw new Error(`Sous-classe inconnue pour le ${classe} : ${sous_classe}`);
 
   const perso = {
     nom,
     race,
     classe,
+    sous_classe,
     niveau: 1,
     xp: 0,
     historique: String(historique).trim(),
@@ -68,11 +72,12 @@ export function creerPersonnage({ nom, race, classe, caracs, competences, histor
     conditions: [],
     mort: { succes: 0, echecs: 0, stable: false, mort: false },
     // Choix de création, pour pouvoir rejouer le même héros depuis le début.
-    creation: { nom, race, classe, caracs: { ...caracs }, competences: competences.filter((c) => k.competences.includes(c)), historique, apparence, niveau: 1 },
+    creation: { nom, race, classe, caracs: { ...caracs }, competences: competences.filter((c) => k.competences.includes(c)), historique, apparence, niveau: 1, sous_classe },
   };
   perso.pv_max = Math.max(k.de_vie + mod(finales.CON) + (r.pv_par_niveau ?? 0), 1);
   perso.pv = perso.pv_max;
   majEmplacements(perso);
+  for (const cap of capacitesDuNiveau(perso, 1)) ajouterCapacite(perso, cap);
   commencerAuNiveau(perso, niveau);
   return perso;
 }
@@ -145,12 +150,15 @@ export function ca(perso) {
   }
   if (perso.armure_du_mage && perso.armure === "Aucune") valeur = Math.max(valeur, 13 + dex);
   if (perso.bouclier) valeur += 2;
+  if (enRage(perso) && aEffet(perso, "colosse")) valeur += 2;
+  if (perso.conditions?.includes("Égide arcanique")) valeur += 2;
   return valeur;
 }
 
 export function bonusCompetence(perso, competence) {
   let b = mod(perso.caracs[srd.COMPETENCES[competence]]);
   if (perso.competences.includes(competence)) b += maitrise(perso.niveau);
+  if (perso.capacites.some((c) => c.effet === "expertise" && c.competences?.includes(competence))) b += maitrise(perso.niveau);
   return b;
 }
 
@@ -166,14 +174,14 @@ export function caracArme(perso, arme) {
 }
 
 export const bonusAttaqueArme = (perso, arme) => mod(perso.caracs[caracArme(perso, arme)]) + maitrise(perso.niveau)
-  + (arme.distance && perso.capacites.some((c) => c.effet === "archerie") ? 2 : 0);
+  + (arme.distance && aEffet(perso, "archerie") ? 2 : 0) + (aEffet(perso, "attaque_bonus") ? 1 : 0);
 
 /** Résultat minimal du d20 pour un coup critique (19 pour le champion). */
 export const seuilCritique = (perso) => (perso.capacites.some((c) => c.effet === "critique_ameliore") ? 19 : 20);
 
 export function bonusDegatsArme(perso, arme) {
   if (arme.degats === "1") return mod(perso.caracs.FOR);
-  return mod(perso.caracs[caracArme(perso, arme)]);
+  return mod(perso.caracs[caracArme(perso, arme)]) + (!arme.distance && aEffet(perso, "duelliste") ? 2 : 0);
 }
 
 /** Applique les montées de niveau dues à l'XP. Renvoie la liste des nouveaux niveaux. */
@@ -193,12 +201,9 @@ export function gagnerNiveau(perso) {
     for (const cap of perso.capacites) {
       if (cap.nom === "Rage") cap.utilisations_max = perso.niveau < 3 ? 2 : perso.niveau < 6 ? 3 : 4;
     }
-    for (const cap of srd.CAPACITES_NIVEAU[perso.classe]?.[perso.niveau] ?? []) {
+    for (const cap of capacitesDuNiveau(perso, perso.niveau)) {
       if (cap === "amelioration") ameliorerCaracteristique(perso);
-      else if (!perso.capacites.some((c) => c.nom === cap.nom)) {
-        perso.capacites.push({ ...cap, utilisations: cap.utilisations_max ?? null });
-        if (cap.nom === "Déplacement rapide") perso.vitesse += 3;
-      }
+      else ajouterCapacite(perso, cap);
     }
     gagnes.push(perso.niveau);
   }
@@ -210,18 +215,43 @@ export function gagnerNiveau(perso) {
  * l'amélioration de caractéristique) et les emplacements du rôdeur. Renvoie vrai si la fiche a changé.
  */
 export function mettreAJourPersonnage(perso) {
-  const avant = JSON.stringify([perso.capacites, perso.emplacements]);
-  for (let n = 2; n <= perso.niveau; n++) {
-    for (const cap of srd.CAPACITES_NIVEAU[perso.classe]?.[n] ?? []) {
-      if (cap !== "amelioration" && !perso.capacites.some((c) => c.nom === cap.nom)) {
-        perso.capacites.push({ ...cap, utilisations: cap.utilisations_max ?? null });
-        if (cap.nom === "Déplacement rapide") perso.vitesse += 3;
-      }
-    }
+  const avant = JSON.stringify([perso.capacites, perso.emplacements, perso.sous_classe]);
+  perso.sous_classe ??= srd.SOUS_CLASSES[perso.classe].options[0].nom;
+  for (let n = 1; n <= perso.niveau; n++) {
+    for (const cap of capacitesDuNiveau(perso, n)) if (cap !== "amelioration") ajouterCapacite(perso, cap);
   }
   majEmplacements(perso);
-  return JSON.stringify([perso.capacites, perso.emplacements]) !== avant;
+  return JSON.stringify([perso.capacites, perso.emplacements, perso.sous_classe]) !== avant;
 }
+
+/** Sous-classe du personnage (celle du SRD pour les fiches qui n'en ont pas). */
+export function sousClasse(perso) {
+  const options = srd.SOUS_CLASSES[perso.classe].options;
+  return options.find((o) => o.nom === perso.sous_classe) ?? options[0];
+}
+
+/** Capacités gagnées à un niveau donné : celles de la classe puis celles de la sous-classe. */
+function capacitesDuNiveau(perso, niveau) {
+  return [...(srd.CAPACITES_NIVEAU[perso.classe]?.[niveau] ?? []), ...(sousClasse(perso).capacites[niveau] ?? [])];
+}
+
+function ajouterCapacite(perso, cap) {
+  if (perso.capacites.some((c) => c.nom === cap.nom)) return;
+  perso.capacites.push({ ...cap, utilisations: cap.utilisations_max ?? null });
+  if (cap.nom === "Déplacement rapide") perso.vitesse += 3;
+  for (const comp of cap.competences ?? []) if (!perso.competences.includes(comp)) perso.competences.push(comp);
+}
+
+/** Vrai si le personnage a une capacité avec cet effet. */
+export const aEffet = (perso, effet) => perso.capacites.some((c) => c.effet === effet);
+
+/** Bonus aux dégâts d'un sort selon son type (Domaine du Soleil, École des éléments). */
+export function bonusPuissanceSort(perso, typeDegats) {
+  const ok = perso.capacites.some((c) => c.effet === "puissance_sorts" && c.types?.includes(minuscule(typeDegats)));
+  return ok ? Math.max(mod(perso.caracs[caracSort(perso)]), 0) : 0;
+}
+
+const minuscule = (t) => String(t ?? "").toLowerCase();
 
 /** Amélioration de caractéristique (niveau 4) : +2 à la caractéristique principale de la classe, 20 maximum. */
 function ameliorerCaracteristique(perso) {
@@ -302,7 +332,7 @@ export function resumeTexte(p) {
   const v = vueFiche(p);
   const caracs = srd.CARACS.map((c) => `${c} ${p.caracs[c]} (${signe(v.mods[c])})`).join(", ");
   const lignes = [
-    `${p.nom} — ${p.race} ${p.classe} niveau ${p.niveau} (XP ${p.xp})`,
+    `${p.nom} — ${p.race} ${p.classe} (${sousClasse(p).nom}${p.niveau < srd.SOUS_CLASSES[p.classe].niveau ? `, à partir du niveau ${srd.SOUS_CLASSES[p.classe].niveau}` : ""}) niveau ${p.niveau} (XP ${p.xp})`,
     `PV ${p.pv}/${p.pv_max} · CA ${v.ca} · Vitesse ${p.vitesse} m · Maîtrise +${v.maitrise}`,
     `Caractéristiques : ${caracs}`,
     `Compétences maîtrisées : ${p.competences.join(", ") || "aucune"}`,

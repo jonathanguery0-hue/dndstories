@@ -1,7 +1,7 @@
 import * as des from "./des.js";
 import * as srd from "./srd.js";
 import { SCENARIOS } from "./scenarios.js";
-import { NIVEAUX_DE_DEPART, creerPersonnage, mettreAJourPersonnage, vueFiche } from "./personnage.js";
+import { NIVEAUX_DE_DEPART, creerPersonnage, mettreAJourPersonnage, sousClasse, vueFiche } from "./personnage.js";
 import { nouvellePartie, POTIONS } from "./moteur.js";
 import { clientOpenAI, clientServeur, condenserMemoire, extraireChoix, jouerTour, listerModeles, verifierCode } from "./mj.js";
 import { SERVEUR_URL } from "./serveur.js";
@@ -407,6 +407,15 @@ function rendreClasse() {
       <li>Sauvegardes maîtrisées : ${c.sauvegardes.join(", ")}</li>
       <li>Armure : ${echapper(c.armure)} · Armes : ${c.armes.map(echapper).join(", ")}</li>
       <li>Caractéristiques importantes : ${c.conseil.slice(0, 2).join(", ")}</li></ul></div>`;
+    const sc = srd.SOUS_CLASSES[creation.classe];
+    details += `<h3>${echapper(sc.titre)} <small class="discret">(${sc.niveau === 1 ? "dès le niveau 1" : `à partir du niveau ${sc.niveau}`})</small></h3>
+      <div class="choix-grille">${sc.options.map((o) => {
+        const caps = Object.values(o.capacites).flat();
+        return `<button type="button" class="choix ${creation.sous_classe === o.nom ? "selection" : ""}" data-sous-classe="${echapper(o.nom)}">
+          <strong>${echapper(o.nom)}${o.srd ? "" : ' <span class="etiquette">création originale</span>'}</strong>
+          <small>${echapper(o.description)}</small>
+          ${caps.map((k) => `<small class="discret">${echapper(k.description)}</small>`).join("")}</button>`;
+      }).join("")}</div>`;
   }
   return `<h2>Choisis ta classe</h2><div class="choix-grille">${cartes}</div>${details}`;
 }
@@ -495,8 +504,14 @@ function brancherEtape() {
     creation.race = b.dataset.race; afficherEtape();
   }));
   zone.querySelectorAll("[data-classe]").forEach((b) => b.addEventListener("click", () => {
-    if (creation.classe !== b.dataset.classe) creation.competences = [];
+    if (creation.classe !== b.dataset.classe) {
+      creation.competences = [];
+      creation.sous_classe = srd.SOUS_CLASSES[b.dataset.classe].options[0].nom;
+    }
     creation.classe = b.dataset.classe; afficherEtape();
+  }));
+  zone.querySelectorAll("[data-sous-classe]").forEach((b) => b.addEventListener("click", () => {
+    creation.sous_classe = b.dataset.sousClasse; afficherEtape();
   }));
   zone.querySelectorAll("[data-scenario]").forEach((b) => b.addEventListener("click", () => {
     creation.scenario = b.dataset.scenario;
@@ -575,7 +590,7 @@ $("#etape-suivante").addEventListener("click", () => {
     const perso = creerPersonnage({
       nom: creation.nom, race: creation.race, classe: creation.classe, caracs,
       competences: creation.competences, historique: creation.historique, apparence: creation.apparence,
-      niveau: creation.niveau,
+      niveau: creation.niveau, sous_classe: creation.sous_classe,
     });
     const partie = nouvellePartie(perso, creation.scenario);
     stockage.sauvegarder(partie);
@@ -658,7 +673,7 @@ function rendrePanneau() {
   $("#onglet-fiche").innerHTML = `
     <div class="entete-perso">
       <h2>${echapper(p.nom)}</h2>
-      <div class="sous">${echapper(p.race)} · ${echapper(p.classe)} niveau ${p.niveau}</div>
+      <div class="sous">${echapper(p.race)} · ${echapper(p.classe)} (${echapper(sousClasse(p).nom)}) niveau ${p.niveau}</div>
     </div>
     <p style="margin:.6rem 0 .2rem">PV <b>${p.pv}</b> / ${p.pv_max}
       ${etat ? `<span class="pastille alerte-etat">${etat}</span>` : ""}
@@ -797,18 +812,21 @@ $("#fin-partie").addEventListener("click", (e) => {
 // ------------------------------------------------------------------ carte du donjon
 
 // Pistes de la grille : salles (34 px) et couloirs (12 px) en alternance.
-const pistes = (n) => Array.from({ length: n }, (_, i) => (i % 2 === 0 ? "34px" : "12px")).join(" ");
+const pistes = (n) => Array.from({ length: n }, (_, i) => (i % 2 === 0 ? "var(--case)" : "var(--couloir)")).join(" ");
 
 const ICONES_SALLES = {
   entree: "🚪", combat: "⚔️", boss: "👑", tresor: "💰", piege: "⚠️", calme: "·", sanctuaire: "⛩️", escalier: "⬇️",
 };
 
 /** Mini-carte de l'étage : salles visitées, portes vers l'inconnu, salle actuelle ; clic = s'y rendre. */
+const FLECHES = { nord: "⬆️", ouest: "⬅️", est: "➡️", sud: "⬇️" };
+
 function rendreCarteDonjon() {
   const zone = $("#carte-donjon");
   const d = PARTIE.donjon;
   if (PARTIE.scenario !== "donjon" || !d?.position) {
     zone.classList.add("cache");
+    $("#boussole").classList.add("cache");
     return;
   }
   const etage = Number(d.position.split("-")[0]);
@@ -853,6 +871,17 @@ function rendreCarteDonjon() {
   }
   const sur = !PARTIE.combat && !(ici.ennemis && !ici.nettoyee);
   const peutDescendre = sur && (ici.type === "escalier" || (ici.type === "boss" && ici.nettoyee));
+  // Téléphone : barre d'exploration sous le récit (une touche par sortie) et carte en grand.
+  const boussole = $("#boussole");
+  boussole.classList.toggle("cache", Boolean(PARTIE.combat) || PARTIE.personnage.mort.mort);
+  boussole.innerHTML = `<button type="button" data-ouvrir-carte title="Voir la carte">🗺️ <small>Étage ${etage}</small></button>`
+    + Object.keys(FLECHES).filter((dir) => ici.sorties[dir]).map((dir) => {
+      const cible = plan.salles[ici.sorties[dir]];
+      const nom = cible.visitee ? cible.nom : "inexploré";
+      return `<button type="button" data-direction="${dir}" title="${echapper(nom)}">${FLECHES[dir]} ${dir[0].toUpperCase() + dir.slice(1)}<small>${echapper(nom)}</small></button>`;
+    }).join("")
+    + (sur ? '<button type="button" data-donjon="fouiller">🔍 Fouiller</button>' : "")
+    + (peutDescendre ? '<button type="button" class="important" data-donjon="descendre">🪜 Descendre</button>' : "");
   zone.innerHTML = `
     <div class="entete-carte"><span>🗺️ Étage ${etage}</span><small>${echapper(plan.theme)}</small></div>
     <div class="grille-carte" style="grid-template-columns:${pistes(largeur)};grid-template-rows:${pistes(hauteur)}">${cases.join("")}</div>
@@ -862,12 +891,18 @@ function rendreCarteDonjon() {
       ${peutDescendre ? '<button type="button" class="action-combat" data-donjon="descendre">⬇️ Descendre</button>' : ""}
     </div>`;
   zone.classList.remove("cache");
+  $("#carte-grande").innerHTML = zone.innerHTML;
 }
 
-$("#carte-donjon").addEventListener("click", (e) => {
+function actionDonjon(e) {
+  if (e.target.closest("[data-ouvrir-carte]")) {
+    $("#dialogue-carte").showModal();
+    return;
+  }
   if (enAttente) return;
   const salle = e.target.closest("[data-direction]");
   const action = e.target.closest("[data-donjon]");
+  if (salle || action) $("#dialogue-carte").close();
   if (salle) {
     fermerPanneau();
     envoyer(`Je prends la sortie ${salle.dataset.direction}.`, { outil: "explorer", args: { direction: salle.dataset.direction } });
@@ -878,7 +913,8 @@ $("#carte-donjon").addEventListener("click", (e) => {
     fermerPanneau();
     envoyer("Je descends l'escalier vers l'étage suivant.", { outil: "descendre", args: {} });
   }
-});
+}
+for (const id of ["#carte-donjon", "#carte-grande", "#boussole"]) $(id).addEventListener("click", actionDonjon);
 
 // ------------------------------------------------------------------ bandeau de combat
 
@@ -1040,7 +1076,7 @@ async function envoyer(texte, actionDirecte = null) {
   if (texte) {
     h.insertAdjacentHTML("beforeend", rendreEntree({ type: "joueur", texte }));
     h.scrollTop = h.scrollHeight;
-    $$("#choix-ia button, #bandeau-combat button, #carte-donjon button").forEach((b) => { b.disabled = true; });
+    $$("#choix-ia button, #bandeau-combat button, #carte-donjon button, #boussole button").forEach((b) => { b.disabled = true; });
     $$("[data-capacite]").forEach((b) => { b.disabled = true; });
   }
   try {

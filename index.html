@@ -80,6 +80,7 @@
         <div id="reflexion" class="reflexion cachee"><span class="de-anime">🎲</span> Le maître du jeu réfléchit…</div>
         <p class="erreur" id="erreur-jeu"></p>
         <div class="fin-partie cache" id="fin-partie" role="status"></div>
+        <div class="boussole cache" id="boussole" aria-label="Exploration du donjon"></div>
         <div class="choix-ia" id="choix-ia" aria-label="Actions proposées"></div>
         <form id="formulaire-action" class="saisie">
           <textarea id="action" rows="2" placeholder="Choisis une action ci-dessus, ou écris ce que tu fais…"></textarea>
@@ -127,6 +128,11 @@
 </div>
 
 <!-- ============ RÉGLAGES ============ -->
+<dialog id="dialogue-carte" class="dialogue-carte" aria-label="Carte de l'étage">
+  <div id="carte-grande" class="carte-donjon grande"></div>
+  <form method="dialog"><button class="bouton" type="submit">Fermer</button></form>
+</dialog>
+
 <dialog id="reglages">
   <form method="dialog" id="formulaire-reglages">
     <h2>Réglages</h2>

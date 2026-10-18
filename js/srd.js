@@ -511,11 +511,7 @@ export const CLASSES = {
     "or": 15,
     "lanceur": "SAG",
     "capacites": [
-      {
-        "nom": "Domaine de la Vie",
-        "description": "Disciple de la Vie : vos sorts de soins rendent 2 + niveau du sort PV supplémentaires (inclus)."
-      }
-    ],
+],
     "description": "Serviteur d'une divinité, guérisseur et protecteur.",
     "conseil": [
       "SAG",
@@ -956,7 +952,6 @@ export const EMPLACEMENTS_DEMI = {
 export const CAPACITES_NIVEAU = {
   "Guerrier": {
     "2": [{ "nom": "Fougue", "description": "Une action supplémentaire pendant ce tour.", "utilisations_max": 1, "recharge": "court" }],
-    "3": [{ "nom": "Champion : critique amélioré", "description": "Coup critique sur 19 ou 20 aux attaques d'arme (inclus).", "effet": "critique_ameliore" }],
     "4": ["amelioration"],
     "5": [{ "nom": "Attaque supplémentaire", "description": "Deux attaques quand il choisit l'action Attaquer (un appel d'attaque par coup)." }]
   },
@@ -965,7 +960,6 @@ export const CAPACITES_NIVEAU = {
       { "nom": "Attaque téméraire", "description": "Peut attaquer avec l'avantage (FOR) ; les ennemis ont alors l'avantage contre lui jusqu'à son prochain tour." },
       { "nom": "Sens du danger", "description": "Avantage aux sauvegardes de DEX contre les effets qu'il voit (pièges, sorts)." }
     ],
-    "3": [{ "nom": "Berserker : frénésie", "description": "En rage, peut faire une attaque d'arme en action bonus à chaque tour (1 niveau d'épuisement à la fin)." }],
     "4": ["amelioration"],
     "5": [
       { "nom": "Attaque supplémentaire", "description": "Deux attaques quand il choisit l'action Attaquer (un appel d'attaque par coup)." },
@@ -974,7 +968,6 @@ export const CAPACITES_NIVEAU = {
   },
   "Roublard": {
     "2": [{ "nom": "Ruse", "description": "Action bonus : Foncer, Se désengager ou Se cacher." }],
-    "3": [{ "nom": "Voleur : mains lestes", "description": "Action bonus : utiliser un objet, crocheter, désamorcer ou faire les poches." }],
     "4": ["amelioration"],
     "5": [{ "nom": "Esquive instinctive", "description": "Réaction : divise par deux les dégâts d'une attaque qu'il voit venir." }]
   },
@@ -983,7 +976,6 @@ export const CAPACITES_NIVEAU = {
       { "nom": "Style de combat : Archerie", "description": "+2 aux attaques avec une arme à distance (inclus).", "effet": "archerie" },
       { "nom": "Sorts de rôdeur", "description": "Lance des sorts de rôdeur (SAG)." }
     ],
-    "3": [{ "nom": "Chasseur : tueur de colosses", "description": "Une fois par tour, +1d8 dégâts contre une créature déjà blessée." }],
     "4": ["amelioration"],
     "5": [{ "nom": "Attaque supplémentaire", "description": "Deux attaques quand il choisit l'action Attaquer (un appel d'attaque par coup)." }]
   },
@@ -993,7 +985,6 @@ export const CAPACITES_NIVEAU = {
     "5": [{ "nom": "Destruction des morts-vivants", "description": "Le Renvoi détruit les morts-vivants de FP 1/2 ou moins." }]
   },
   "Magicien": {
-    "2": [{ "nom": "École d'évocation : sculpter les sorts", "description": "Ses sorts d'évocation épargnent des alliés pris dans la zone." }],
     "4": ["amelioration"]
   }
 };
@@ -1169,3 +1160,74 @@ export const RESISTANCES_RACE = {
 
 // Résistances accordées par la Rage du barbare.
 export const RESISTANCES_RAGE = ["contondant", "perforant", "tranchant"];
+
+// Sous-classes. La première de chaque classe vient du SRD 5.1 ; les deux autres sont des créations
+// originales de Contes & Dragons. Les capacités sont gagnées au niveau indiqué (clé de `capacites`).
+export const SOUS_CLASSES = {
+  "Guerrier": {
+    "niveau": 3, "titre": "Archétype martial",
+    "options": [
+      { "nom": "Champion", "srd": true, "description": "La force brute et la précision : ses coups critiques tombent plus souvent.",
+        "capacites": { "3": [{ "nom": "Champion : critique amélioré", "description": "Coup critique sur 19 ou 20 aux attaques d'arme (inclus).", "effet": "critique_ameliore" }] } },
+      { "nom": "Duelliste", "description": "L'escrimeur élégant qui frappe là où ça fait mal.",
+        "capacites": { "3": [{ "nom": "Duelliste : botte secrète", "description": "+2 aux dégâts des armes de corps à corps (inclus).", "effet": "duelliste" }] } },
+      { "nom": "Sentinelle", "description": "Le rempart inébranlable qui encaisse et tient la ligne.",
+        "capacites": { "3": [{ "nom": "Sentinelle : rempart", "description": "Réaction quand il est touché : récupère 1d10 + niveau PV (2 fois par repos court).", "utilisations_max": 2, "recharge": "court", "effet": "rempart" }] } }
+    ]
+  },
+  "Barbare": {
+    "niveau": 3, "titre": "Voie primitive",
+    "options": [
+      { "nom": "Berserker", "srd": true, "description": "La fureur pure : encore plus d'attaques quand la rage monte.",
+        "capacites": { "3": [{ "nom": "Berserker : frénésie", "description": "En rage, peut faire une attaque d'arme en action bonus à chaque tour (1 niveau d'épuisement à la fin)." }] } },
+      { "nom": "Colosse", "description": "La peau devient pierre : presque intouchable pendant la rage.",
+        "capacites": { "3": [{ "nom": "Colosse : peau de pierre", "description": "En rage, +2 à la CA (inclus).", "effet": "colosse" }] } },
+      { "nom": "Sang-de-braise", "description": "Un feu ancestral brûle dans ses veines et ses armes.",
+        "capacites": { "3": [{ "nom": "Sang-de-braise : rage ardente", "description": "En rage, ses coups de corps à corps infligent 1d4 dégâts de feu en plus (inclus).", "effet": "rage_ardente" }] } }
+    ]
+  },
+  "Roublard": {
+    "niveau": 3, "titre": "Archétype de roublard",
+    "options": [
+      { "nom": "Voleur", "srd": true, "description": "Mains agiles, crochets et objets : rien ne lui résiste.",
+        "capacites": { "3": [{ "nom": "Voleur : mains lestes", "description": "Action bonus : utiliser un objet, crocheter, désamorcer ou faire les poches." }] } },
+      { "nom": "Lame de l'ombre", "description": "Frappe avant que l'ennemi ne comprenne ce qui arrive.",
+        "capacites": { "3": [{ "nom": "Lame de l'ombre : premier sang", "description": "Avantage aux attaques contre une créature qui n'a pas encore joué dans le combat ; ses coups contre elle ajoutent l'attaque sournoise." }] } },
+      { "nom": "Charmeur", "description": "Le beau parleur qui ouvre les portes et les cœurs.",
+        "capacites": { "3": [{ "nom": "Charmeur : langue d'argent", "description": "Double maîtrise en Persuasion et Tromperie (inclus).", "effet": "expertise", "competences": ["Persuasion", "Tromperie"] }] } }
+    ]
+  },
+  "Rôdeur": {
+    "niveau": 3, "titre": "Archétype de rôdeur",
+    "options": [
+      { "nom": "Chasseur", "srd": true, "description": "Le traqueur de grandes proies.",
+        "capacites": { "3": [{ "nom": "Chasseur : tueur de colosses", "description": "Une fois par tour, +1d8 dégâts contre une créature déjà blessée." }] } },
+      { "nom": "Pisteur des brumes", "description": "Il surgit du brouillard et frappe le premier.",
+        "capacites": { "3": [{ "nom": "Pisteur des brumes : embuscade", "description": "+3 m de vitesse ; au premier tour d'un combat, sa première attaque qui touche inflige 1d8 dégâts en plus." }] } },
+      { "nom": "Compagnon de meute", "description": "Un loup fidèle l'accompagne partout.",
+        "capacites": { "3": [{ "nom": "Compagnon de meute : loup fidèle", "description": "Un loup (statistiques du Loup) combat à ses côtés ; il agit juste après le rôdeur. S'il tombe, il revient après un repos long." }] } }
+    ]
+  },
+  "Clerc": {
+    "niveau": 1, "titre": "Domaine divin",
+    "options": [
+      { "nom": "Vie", "srd": true, "description": "Le guérisseur par excellence.",
+        "capacites": { "1": [{ "nom": "Domaine de la Vie", "description": "Disciple de la Vie : ses sorts de soins rendent 2 + niveau du sort PV supplémentaires (inclus).", "effet": "disciple_vie" }] } },
+      { "nom": "Soleil", "description": "La lumière brûlante qui purifie les ténèbres.",
+        "capacites": { "1": [{ "nom": "Domaine du Soleil", "description": "Éclat solaire : ajoute son modificateur de SAG aux dégâts de ses sorts radiants (inclus).", "effet": "puissance_sorts", "types": ["radiant"] }] } },
+      { "nom": "Bataille", "description": "Le prêtre guerrier, arme au poing.",
+        "capacites": { "1": [{ "nom": "Domaine de la Bataille", "description": "Bras armé : +1 aux jets d'attaque avec une arme (inclus).", "effet": "attaque_bonus" }] } }
+    ]
+  },
+  "Magicien": {
+    "niveau": 2, "titre": "Tradition arcanique",
+    "options": [
+      { "nom": "Évocation", "srd": true, "description": "Boules de feu et éclairs, sans brûler ses alliés.",
+        "capacites": { "2": [{ "nom": "École d'évocation : sculpter les sorts", "description": "Ses sorts d'évocation épargnent des alliés pris dans la zone." }] } },
+      { "nom": "Éléments", "description": "Le feu, le froid et la foudre lui obéissent mieux qu'à quiconque.",
+        "capacites": { "2": [{ "nom": "École des éléments : maîtrise élémentaire", "description": "Ajoute son modificateur d'INT aux dégâts de ses sorts de feu, de froid et de foudre (inclus).", "effet": "puissance_sorts", "types": ["feu", "froid", "foudre"] }] } },
+      { "nom": "Garde", "description": "Le protecteur arcanique, entouré de boucliers.",
+        "capacites": { "2": [{ "nom": "École de la garde : égide arcanique", "description": "Action bonus : +2 à la CA jusqu'à la fin du combat (1 fois par repos court).", "utilisations_max": 1, "recharge": "court", "effet": "egide" }] } }
+    ]
+  }
+};

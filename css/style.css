@@ -202,9 +202,9 @@ input[type=range] { width: 100%; accent-color: var(--or); }
 .entete-carte { display: flex; justify-content: space-between; align-items: baseline; gap: .5rem; margin-bottom: .4rem; }
 .entete-carte span { font-family: "Cinzel", Georgia, serif; color: var(--or); }
 .entete-carte small { color: var(--discret); font-size: .75rem; text-align: right; }
-.grille-carte { display: grid; justify-content: center; align-items: center; gap: 0; margin: .3rem 0; }
+.grille-carte { --case: 34px; --couloir: 12px; display: grid; justify-content: center; align-items: center; gap: 0; margin: .3rem 0; }
 .salle-carte {
-  width: 34px; height: 34px; border-radius: 6px; border: 1px solid var(--bord); background: var(--fond-2);
+  width: var(--case); height: var(--case); border-radius: 6px; border: 1px solid var(--bord); background: var(--fond-2);
   color: var(--texte); font-size: .95rem; line-height: 1; padding: 0; display: flex; align-items: center; justify-content: center;
 }
 .salle-carte.inconnue { border-style: dashed; opacity: .55; }
@@ -213,11 +213,25 @@ input[type=range] { width: 100%; accent-color: var(--or); }
 .salle-carte[data-direction]:hover { background: #2f271b; border-color: var(--or); }
 .salle-carte:disabled { cursor: default; }
 .couloir { justify-self: center; align-self: center; background: var(--or-fonce); }
-.couloir.h { width: 12px; height: 3px; }
-.couloir.v { width: 3px; height: 12px; }
+.couloir.h { width: var(--couloir); height: 3px; }
+.couloir.v { width: 3px; height: var(--couloir); }
 .ici-carte { font-size: .82rem; color: var(--discret); text-align: center; }
 .actions-carte { display: flex; gap: .4rem; justify-content: center; margin-top: .4rem; }
 .actions-carte:empty { display: none; }
+.carte-donjon.grande { border: 0; margin: 0; padding: 0; background: none; overflow: auto; max-height: 70vh; }
+.grande .grille-carte { --case: 52px; --couloir: 18px; }
+.grande .salle-carte { font-size: 1.45rem; border-radius: 9px; }
+.grande .couloir.h { height: 4px; }
+.grande .couloir.v { width: 4px; }
+.grande .ici-carte { font-size: .95rem; margin-top: .4rem; }
+.grande .actions-carte .action-combat { padding: .6rem 1rem; font-size: 1rem; }
+.dialogue-carte { width: min(560px, calc(100vw - 32px)); }
+.dialogue-carte form { display: flex; justify-content: flex-end; margin-top: .6rem; }
+.etiquette { font-family: system-ui, sans-serif; font-size: .65rem; font-weight: 400; color: var(--discret);
+  border: 1px solid var(--bord); border-radius: 999px; padding: .05rem .4rem; vertical-align: middle; }
+
+/* ---- Barre d'exploration du donjon (téléphone) */
+.boussole { display: none; }
 
 /* ---- Bandeau de combat */
 .panneau .combat { display: none !important; } /* remplacé par le bandeau au-dessus du récit */
@@ -404,6 +418,16 @@ label.case { display: flex; gap: .5rem; align-items: center; margin-bottom: .5re
 label.case input { accent-color: var(--or); width: auto; }
 
 @media (max-width: 900px) {
+  #panneau .carte-donjon { display: none; } /* sur téléphone : barre d'exploration + carte en grand */
+  .boussole:not(.cache) { display: flex; gap: .4rem; overflow-x: auto; padding: .1rem 0 .5rem; scrollbar-width: none; }
+  .boussole button {
+    flex: 0 0 auto; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: .1rem;
+    min-width: 64px; min-height: 52px; padding: .35rem .6rem; border-radius: 10px; border: 1px solid var(--or-fonce);
+    background: var(--fond-2); color: var(--texte); font: inherit; font-size: .9rem; cursor: pointer;
+  }
+  .boussole button small { font-size: .68rem; color: var(--discret); max-width: 90px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .boussole button.important { border-color: var(--or); background: #3a2e18; }
+  .boussole button:disabled { opacity: .5; }
   body { font-size: 17px; }
   .ecran { padding: .8rem 16px; }
   body.mode-jeu .barre { padding: .4rem 16px; }

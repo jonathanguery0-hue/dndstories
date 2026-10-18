@@ -760,3 +760,66 @@ test("une ancienne fiche de niveau 3 récupère ses capacités de classe", () =>
   assert.ok(p.capacites.some((c) => c.nom === "Fougue"));
   assert.equal(mettreAJourPersonnage(p), false);
 });
+
+// ------------------------------------------------------------------ sous-classes
+
+test("sous-classes : choix à la création, capacités au bon niveau, effets appliqués", () => {
+  const duel = creerPersonnage({
+    nom: "Vex", race: "Humain", classe: "Guerrier", caracs: CARACS, competences: ["Athlétisme", "Perception"],
+    sous_classe: "Duelliste",
+  });
+  const epee = () => vueFiche(duel).attaques.find((a) => a.nom === "Épée longue").degats;
+  assert.equal(duel.sous_classe, "Duelliste");
+  assert.equal(duel.creation.sous_classe, "Duelliste");
+  assert.equal(epee(), "1d8+3"); // pas encore niveau 3
+  duel.xp = 900;
+  gagnerNiveau(duel);
+  assert.equal(epee(), "1d8+5");
+  assert.ok(!duel.capacites.some((c) => c.nom.startsWith("Champion")));
+  assert.throws(() => creerPersonnage({ ...duel.creation, sous_classe: "Paladin" }), /Sous-classe inconnue/);
+
+  // Le domaine du clerc compte dès le niveau 1 ; par défaut, celui du SRD.
+  const clerc = (sous_classe) => creerPersonnage({
+    nom: "Aube", race: "Humain", classe: "Clerc", caracs: { FOR: 12, DEX: 10, CON: 13, INT: 8, SAG: 15, CHA: 14 },
+    competences: ["Histoire", "Médecine"], sous_classe,
+  });
+  assert.ok(clerc().capacites.some((c) => c.nom === "Domaine de la Vie"));
+  const soleil = clerc("Soleil");
+  assert.ok(!soleil.capacites.some((c) => c.nom === "Domaine de la Vie"));
+  const partie = nouvellePartie(soleil, "brumesaule");
+  const m = new Moteur(partie);
+  m.commencer_combat({ ennemis: [{ nom: "Ogre" }] });
+  des.definirGraine(1);
+  const r = m.lancer_sort({ sort: "Flamme sacrée", cibles: ["Ogre"] });
+  if (!r.resultats[0].sauvegarde_reussie) assert.ok(r.resultats[0].degats >= 1 + 3);
+
+  // Charmeur : double maîtrise en Persuasion.
+  const roublard = creerPersonnage({
+    nom: "Lys", race: "Humain", classe: "Roublard", caracs: CARACS, niveau: 3, sous_classe: "Charmeur",
+    competences: ["Discrétion", "Acrobaties", "Perception", "Escamotage"],
+  });
+  const persuasion = vueFiche(roublard).toutes_competences.find((c) => c.nom === "Persuasion");
+  assert.equal(persuasion.bonus, mod(roublard.caracs.CHA) + 4);
+});
+
+test("sous-classes : égide du magicien et ancienne fiche sans sous-classe", () => {
+  const p = creerPersonnage({
+    nom: "Ilsa", race: "Haut-elfe", classe: "Magicien", sous_classe: "Garde", niveau: 3,
+    caracs: { FOR: 8, DEX: 14, CON: 13, INT: 15, SAG: 12, CHA: 10 }, competences: ["Arcanes", "Histoire"],
+  });
+  const partie = nouvellePartie(p, "donjon");
+  const m = new Moteur(partie);
+  const avant = ca(p);
+  m.commencer_combat({ ennemis: [{ nom: "Gobelin" }] });
+  m.utiliser_capacite({ nom: "École de la garde : égide arcanique" });
+  assert.equal(ca(partie.personnage), avant + 2);
+  m.fin_combat({ issue: "fuite" });
+  assert.equal(ca(partie.personnage), avant);
+
+  const ancien = guerrier();
+  delete ancien.sous_classe;
+  ancien.niveau = 3;
+  assert.equal(mettreAJourPersonnage(ancien), true);
+  assert.equal(ancien.sous_classe, "Champion");
+  assert.ok(ancien.capacites.some((c) => c.nom === "Champion : critique amélioré"));
+});

@@ -10,7 +10,7 @@ import { monstreSRD } from "./regles.js";
 import { DIRECTIONS, ETAGES_PAR_SECTION, genererSection, sectionDeLEtage } from "./donjon.js";
 import {
   bonusAttaqueArme, bonusAttaqueSort, bonusCompetence, bonusDegatsArme, bonusSauvegarde, ca, ddSort,
-  enRage, gagnerNiveau, mod, resistances, seuilCritique, signe, sortsConnus,
+  aEffet, bonusPuissanceSort, enRage, gagnerNiveau, mod, resistances, seuilCritique, signe, sortsConnus,
 } from "./personnage.js";
 
 /** Action refusée par les règles ; le message est renvoyé à l'IA pour qu'elle corrige. */
@@ -388,6 +388,7 @@ export class Moteur {
     let bonusDeg = bonusDegatsArme(p, a);
     if (enRage(p) && !a.distance) bonusDeg += 2;
     if (degats_bonus) formule += "+" + String(degats_bonus).replace(/^\+/, "");
+    if (enRage(p) && !a.distance && aEffet(p, "rage_ardente")) formule += "+1d4"; // Sang-de-braise : feu
     if (critique) {
       formule = doublerDes(formule);
       if (p.race === "Demi-orc" && !a.distance) formule += "+" + a.degats;
@@ -442,7 +443,8 @@ export class Moteur {
     } else if (s.type === "soin") {
       const f = formule("soin");
       const r = roll(f);
-      const bonus = modSort + (p.classe === "Clerc" ? 2 + niveau : 0);
+      const disciple = aEffet(p, "disciple_vie") || p.capacites.some((c) => c.nom === "Domaine de la Vie");
+      const bonus = modSort + (disciple ? 2 + niveau : 0);
       const total = Math.max(r.total + bonus, 1);
       const lignes = [];
       for (const c of cibles.length ? cibles : ["joueur"]) {
@@ -497,7 +499,7 @@ export class Moteur {
             let f = formule("degats");
             if (crit) f = doublerDes(f);
             const rd = roll(f);
-            const deg = Math.max(rd.total + (s.ajoute_mod ? modSort : 0), 1);
+            const deg = Math.max(rd.total + (s.ajoute_mod ? modSort : 0) + bonusPuissanceSort(p, s.degats_type), 1);
             const etat = this.blesserEnnemi(e, deg);
             lignes.push(`${debut}${crit ? "CRITIQUE ! " : "Touché ! "}${rd.detail} = ${deg} ${s.degats_type}. ${etat}`);
             res.resultats.push({ cible: e.id, touche: true, degats: deg, pv: e.pv, etat: e.etat });
@@ -519,6 +521,7 @@ export class Moteur {
       } else {
         const dd = ddSort(p);
         const rd = roll(formule("degats"));
+        rd.total += bonusPuissanceSort(p, s.degats_type);
         for (const c of cibles) {
           const e = this.ennemi(c);
           if (e.etat === "vaincu") continue;
@@ -606,6 +609,7 @@ export class Moteur {
     this.partie.combat = null;
     const p = this.perso;
     retirerRage(p);
+    p.conditions = p.conditions.filter((c) => c !== "Égide arcanique");
     // Mode donjon : la salle est nettoyée si plus aucun ennemi n'est debout.
     if (this.partie.donjon?.etages && issue !== "fuite" && issue !== "defaite") {
       const { salle } = this.salleCourante();
@@ -687,6 +691,15 @@ export class Moteur {
       const etat = this.soignerJoueur(rd.total);
       this.evt(`Second souffle : ${rd.detail} = ${rd.total} PV. ${etat}`);
       res.soin = rd.total;
+    } else if (cap.effet === "rempart") {
+      const rd = roll(`1d10+${p.niveau}`);
+      const etat = this.soignerJoueur(rd.total);
+      this.evt(`🛡️ Rempart : ${rd.detail} = ${rd.total} PV. ${etat}`);
+      res.soin = rd.total;
+    } else if (cap.effet === "egide") {
+      if (!p.conditions.includes("Égide arcanique")) p.conditions.push("Égide arcanique");
+      res.nouvelle_ca = ca(p);
+      this.evt(`🔷 ${p.nom} s'entoure d'une égide arcanique : CA ${res.nouvelle_ca} jusqu'à la fin du combat.`);
     } else if (cap.effet === "rage") {
       if (!enRage(p)) p.conditions.push("Rage");
       this.evt(`🔥 ${p.nom} entre en Rage !`);

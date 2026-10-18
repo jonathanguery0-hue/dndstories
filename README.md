@@ -13,6 +13,7 @@ Rien à installer : ça marche sur ordinateur, tablette et téléphone.
 - **iPhone / iPad** : dans Safari, bouton **Partager** → **« Sur l'écran d'accueil »**.
 
 - 🧙 **Création de personnage** : 9 races, 6 classes (Guerrier, Barbare, Roublard, Rôdeur, Clerc, Magicien), caractéristiques, compétences, historique.
+- 🛡️ **Sous-classes** : 3 voies par classe, choisies à la création (Champion, Duelliste ou Sentinelle pour le guerrier ; Vie, Soleil ou Bataille pour le clerc…). La première vient du SRD 5.1, les deux autres sont des créations originales du jeu ; leurs effets sont appliqués par le moteur.
 - 🏅 **Niveau de départ 1, 3 ou 5** pour le Gouffre et l'aventure libre : le héros arrive avec ses capacités de classe (attaque supplémentaire, Fougue, Ruse, Conduit divin…), son amélioration de caractéristique, ses sorts jusqu'au niveau 3 (Boule de feu, Esprits gardiens…) et un peu d'équipement en plus. Les mêmes capacités s'obtiennent en montant de niveau en jeu.
 - 📜 **Fiche toujours à jour** : PV, CA, attaques, sorts, inventaire, or, XP et niveaux.
 - 🎲 **Tu lances tes dés** : pour tes tests, attaques, sauvegardes et ton initiative, la partie s'arrête et tu lances toi-même ton d20 à l'écran (animation, bruit de dés, vibration). Le jeu applique ensuite les règles : l'IA ne peut ni tricher ni « oublier » tes PV.
@@ -20,7 +21,7 @@ Rien à installer : ça marche sur ordinateur, tablette et téléphone.
 - 🧪 **Potions** : bouton **Boire** dans le Sac et en combat, soins appliqués par le jeu. Le héros du Gouffre commence avec 2 potions de soins.
 - ☠️ **Après une mort** : un écran propose de **rejouer avec le même héros** (niveau 1), de créer un nouveau héros ou de revenir à l'accueil.
 - ✨ **Dé karmique** : après 2 échecs d'affilée, ton prochain d20 est lancé avec l'avantage (deux dés, on garde le meilleur) jusqu'à ta prochaine réussite. Réglable (léger, normal, généreux) ou désactivable dans ⚙️.
-- 🗺️ **Quatre aventures** : *Les Ombres de Brumesaule* (enquête et nécromancie), *La Caravane de l'Aube* (voyage et complot), *Le Gouffre aux Mille Marches* (donjon sans fond généré 5 étages à la fois : plan à explorer avec mini-carte, combats, pièges, trésors, sanctuaires et un boss tous les 5 étages), ou une **aventure libre** improvisée.
+- 🗺️ **Quatre aventures** : *Les Ombres de Brumesaule* (enquête et nécromancie), *La Caravane de l'Aube* (voyage et complot), *Le Gouffre aux Mille Marches* (donjon sans fond généré 5 étages à la fois : plan à explorer avec mini-carte — sur téléphone, une barre de déplacement sous le récit et la carte en grand —, combats, pièges, trésors, sanctuaires et un boss tous les 5 étages), ou une **aventure libre** improvisée.
 - 📖 **Le SRD 5.1 complet embarqué** : le MJ consulte les vraies règles, les 319 sorts, les 334 monstres et les objets magiques au lieu d'improviser, et peut faire combattre n'importe quel monstre du SRD.
 - 🔊 **Lecteur vocal** : le maître du jeu lit ses réponses à voix haute (bouton **Voix**) avec une **voix IA naturelle** d'OpenAI (≈ 1,5 centime par minute écoutée) ou la voix gratuite de l'appareil.
 - 💾 **Sauvegarde automatique** dans ton navigateur, avec export/import pour changer d'appareil.
