@@ -86,12 +86,17 @@ Le jeu est réglé pour que le coût reste faible et **ne grimpe pas** avec la l
   résumés (avec le journal des faits importants). Chaque tour coûte donc à peu près pareil, même
   après des heures de jeu.
 - **Mise en cache** : les consignes du MJ et l'historique sont envoyés dans le même ordre à chaque
-  tour ; OpenAI les reconnaît et les facture jusqu'à 90 % moins cher.
-- **Réflexion limitée** : les modèles qui « réfléchissent » (gpt-5…) sont réglés au minimum utile,
-  car cette réflexion cachée est facturée ; la longueur des réponses est plafonnée.
+  tour ; OpenAI les reconnaît et les facture jusqu'à 90 % moins cher. Une clé de cache par partie l'aide à les
+  retrouver.
+- **Réflexion au minimum** : la « réflexion » cachée des modèles gpt-5 est facturée comme du texte
+  écrit ; elle est réglée au plus bas (« minimal »), avec repli automatique si un modèle le refuse.
+- **Moins d'allers-retours** : en combat, le moteur fait jouer tous les ennemis d'un coup. Avec les
+  boutons du bandeau de combat, un round complet ne coûte qu'**un seul** appel à l'IA (le moteur
+  termine aussi le combat tout seul quand le dernier ennemi tombe).
+- **Récits concis** : 60 à 160 mots, 30 à 90 en combat (le texte écrit est la partie la plus chère).
 - **Suivi** : le coût estimé de chaque partie s'affiche sur l'accueil et dans l'onglet **Journal**.
 
-Ordre de grandeur avec `gpt-5-mini` : **environ 0,1 à 0,5 centime par tour** de jeu, plus environ
+Ordre de grandeur avec `gpt-5-mini` : **environ 0,1 à 0,3 centime par tour** de jeu, plus environ
 1 centime par réponse écoutée avec la voix IA. Pour être tranquille, fixe une **limite de dépense
 mensuelle** sur platform.openai.com → *Limits*.
 

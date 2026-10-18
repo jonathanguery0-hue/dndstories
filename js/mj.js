@@ -26,9 +26,24 @@ export const PRIX_MODELES = {
  * raisonnent (elle est facturée comme du texte écrit) et une longueur de réponse plafonnée.
  */
 export function parametresEconomie(modele) {
-  if (/^(gpt-5|o\d)/.test(String(modele ?? ""))) return { reasoning_effort: "low", max_completion_tokens: 6000 };
-  return { max_completion_tokens: 1500 };
+  const m = String(modele ?? "");
+  if (/^(gpt-5|o\d)/.test(m)) return { reasoning_effort: effortMinimal(m), max_completion_tokens: 4000 };
+  return { max_completion_tokens: 1200 };
 }
+
+/**
+ * Le plus bas niveau de réflexion accepté : « minimal » pour gpt-5, gpt-5-mini et gpt-5-nano, « none »
+ * pour gpt-5.1 et suivants, « low » sinon. Si OpenAI le refuse, requeteIA réessaie avec « low ».
+ */
+export function effortMinimal(modele) {
+  if (/^gpt-5(-mini|-nano)?(-\d{4}-\d{2}-\d{2})?$/.test(modele)) return "minimal";
+  if (/^gpt-5\.\d/.test(modele)) return "none";
+  return "low";
+}
+
+/** Vrai si OpenAI refuse le niveau de réflexion demandé (on réessaie alors avec « low »). */
+export const refusEffort = (statut, donnees) => statut === 400
+  && /reasoning[._]effort/i.test(`${donnees?.error?.param ?? ""} ${donnees?.error?.message ?? ""}`);
 
 /** Ajoute la consommation d'un appel au compteur de la partie. */
 export function compterConsommation(partie, usage, modele) {
@@ -105,6 +120,12 @@ export const OUTILS = [
       cibles: { type: "array", items: STR, description: "Identifiants des ennemis visés, ou 'joueur' pour se soigner" },
       niveau_emplacement: { type: "integer", description: "Pour lancer à un niveau supérieur" },
     }, ["sort"]),
+  outil("tour_des_ennemis", "Fait attaquer le joueur par tous les ennemis actifs, dans l'ordre d'initiative. "
+    + "À utiliser une fois par round après l'action du joueur, plutôt que attaque_ennemi pour chacun.",
+    {
+      avantage: BOOL, desavantage: { type: "boolean", description: "Ex. le joueur esquive (action Esquiver)" },
+      sauf: { type: "array", items: STR, description: "Ennemis qui font autre chose (fuir, parler, soigner…)" },
+    }, []),
   outil("attaque_ennemi", "Un ennemi attaque (le joueur par défaut). Les dégâts sont appliqués automatiquement.",
     {
       ennemi: STR, cible: { type: "string", description: "'joueur' ou nom d'un PNJ allié" }, avantage: BOOL, desavantage: BOOL,
@@ -167,7 +188,8 @@ avec 2 ou 3 actions courtes (8 mots maximum), écrites à la première personne 
 (« J'interroge l'aubergiste », « Je fouille la cave »), variées (prudente, audacieuse, sociale…) et \
 cohérentes avec la situation et la fiche (en combat : des actions de combat concrètes avec ses armes, sorts \
 ou capacités). Ce ne sont que des suggestions : le joueur peut toujours écrire autre chose.
-- Réponses de 80 à 250 mots en général ; plus courtes pendant les combats.
+- Sois concis : 60 à 160 mots en général, 30 à 90 mots par round de combat (l'essentiel, sans répéter \
+les chiffres déjà affichés à l'écran).
 - Sois juste mais pas complaisant : les actions ont des conséquences, l'échec est possible et intéressant.
 - Si le joueur tente quelque chose d'impossible ou d'incohérent, explique-le dans le récit.
 - Ne révèle jamais tes notes secrètes directement : fais-les découvrir par l'enquête et le jeu.
@@ -183,10 +205,12 @@ Si son message indique que le moteur l'a déjà appliquée, ne la rappelle pas.
 ne divise pas toi-même les dégâts, mais précise toujours le type de dégâts (type_degats) des attaques et \
 pièges, et mentionne l'effet dans le récit quand il joue (« ta rage encaisse le coup »).
 - Si un outil renvoie une erreur, corrige l'appel ou adapte le récit.
-- COMBAT : appelle commencer_combat, puis respecte l'ordre d'initiative. Au tour du joueur, attends son \
-action (sauf s'il l'a déjà décrite). Ensuite fais agir chaque ennemi actif avec attaque_ennemi (ou une \
-autre action logique : fuir, se rendre…), jusqu'au prochain tour du joueur. Les ennemis endormis ne \
-jouent pas. Quand le combat est fini, appelle fin_combat.
+- COMBAT : appelle commencer_combat. Chaque round : l'action du joueur, puis UN SEUL appel à \
+tour_des_ennemis pour tous les ennemis (dans le même message que l'action du joueur, c'est plus rapide ; \
+utilise « sauf » pour ceux qui fuient ou font autre chose, attaque_ennemi seulement pour un allié PNJ visé). \
+Si les ennemis ont l'initiative au premier round, appelle tour_des_ennemis avant de rendre la main. \
+Si le moteur indique qu'il a déjà fait jouer les ennemis ou terminé le combat, ne le refais pas. \
+Quand le combat est fini, appelle fin_combat.
 - Le joueur ne peut utiliser que ses armes, sorts et capacités de sa fiche. Un sort exige un emplacement libre.
 - Attaque supplémentaire (niveau 5) : quand le joueur attaque, appelle attaque_joueur une fois par coup \
 (deux appels), éventuellement sur deux cibles. Attaque sournoise du roublard : 1d6 par tranche de 2 \
@@ -291,6 +315,9 @@ async function requeteIA(url, entetes, corps, traduireErreur) {
   }
   let donnees = null;
   try { donnees = await reponse.json(); } catch { /* corps vide */ }
+  if (refusEffort(reponse.status, donnees) && corps.reasoning_effort && corps.reasoning_effort !== "low") {
+    return requeteIA(url, entetes, { ...corps, reasoning_effort: "low" }, traduireErreur);
+  }
   if (!reponse.ok) throw new ErreurIA(traduireErreur(reponse.status, donnees));
   const msg = donnees?.choices?.[0]?.message;
   if (!msg) throw new ErreurIA("Réponse inattendue du service d'IA.");
@@ -303,10 +330,15 @@ async function requeteIA(url, entetes, corps, traduireErreur) {
  */
 export function clientOpenAI({ cle, modele, adresse }) {
   const base = (adresse || "https://api.openai.com/v1").replace(/\/+$/, "");
-  return (messages, outils) => requeteIA(
+  const officiel = base.startsWith("https://api.openai.com");
+  return (messages, outils, { cache = "" } = {}) => requeteIA(
     `${base}/chat/completions`,
     cle ? { Authorization: `Bearer ${cle}` } : {},
-    { model: modele, messages, ...(outils ? { tools: outils } : {}), ...parametresEconomie(modele) },
+    {
+      model: modele, messages, ...(outils ? { tools: outils } : {}), ...parametresEconomie(modele),
+      // Même clé pour tous les appels d'une partie : OpenAI retrouve plus souvent le début déjà en cache.
+      ...(officiel && cache ? { prompt_cache_key: `cd-${cache}`.slice(0, 64) } : {}),
+    },
     (statut, donnees) => messageErreur(statut, donnees, modele),
   );
 }
@@ -314,10 +346,10 @@ export function clientOpenAI({ cle, modele, adresse }) {
 /** Même chose en passant par le serveur relais de l'organisateur, avec un code d'accès. */
 export function clientServeur({ url, code }) {
   const base = url.replace(/\/+$/, "");
-  return (messages, outils) => requeteIA(
+  return (messages, outils, { cache = "" } = {}) => requeteIA(
     `${base}/v1/chat/completions`,
     code ? { "X-Code-Acces": code } : {},
-    { messages, ...(outils ? { tools: outils } : {}) },
+    { messages, ...(outils ? { tools: outils } : {}), ...(cache ? { cle_cache: cache } : {}) },
     messageErreurServeur,
   );
 }
@@ -421,6 +453,10 @@ export async function jouerTour(partie, texteJoueur, appeler, actionDirecte = nu
     messageJoueur += `\n[Le moteur a déjà appliqué ${actionDirecte.outil} : ${JSON.stringify(resultat)}. `
       + "Ne rappelle pas cet outil pour cette action ; raconte-la puis poursuis la scène.]";
   }
+  const suite = partie.combat && ACTIONS_DE_ROUND.includes(actionDirecte?.outil) ? await finirLeRound(moteur, demanderJet) : null;
+  if (suite) {
+    messageJoueur += `\n[${suite.texte} : ${JSON.stringify(suite.resultat)}. Ne le refais pas : raconte tout le round en une fois.]`;
+  }
   const messages = [
     { role: "system", content: consignesFixes(partie) },
     ...partie.messages,
@@ -430,7 +466,7 @@ export async function jouerTour(partie, texteJoueur, appeler, actionDirecte = nu
   const narration = [];
   let termine = false;
   for (let etape = 0; etape < MAX_ETAPES; etape++) {
-    const msg = await appeler(messages, outilsPour(partie));
+    const msg = await appeler(messages, outilsPour(partie), { cache: partie.id });
     compterConsommation(partie, msg.usage, msg.modele);
     if (msg.content && msg.content.trim()) narration.push(msg.content.trim());
     if (!msg.tool_calls?.length) {
@@ -465,6 +501,19 @@ export async function jouerTour(partie, texteJoueur, appeler, actionDirecte = nu
   if (texteJoueur) partie.affichage.push({ type: "joueur", texte: texteJoueur });
   partie.affichage.push(...moteur.evenements, { type: "mj", texte: texteMj, ...(choix.length ? { choix } : {}) });
   return { narration: texteMj, choix, evenements: moteur.evenements };
+}
+
+// Actions de combat cliquées qui occupent le tour du joueur : le moteur enchaîne alors le tour des
+// ennemis (ou la fin du combat) sans repasser par l'IA, qui n'a plus qu'à raconter le round.
+const ACTIONS_DE_ROUND = ["attaque_joueur", "lancer_sort", "boire_potion"];
+
+async function finirLeRound(moteur, demanderJet) {
+  const combat = moteur.partie.combat;
+  if (!combat.ennemis.some((e) => e.etat === "actif" || e.etat === "endormi")) {
+    return { texte: "Plus aucun ennemi debout : le moteur a terminé le combat (fin_combat)", resultat: moteur.fin_combat({ issue: "victoire" }) };
+  }
+  const resultat = await moteur.executerAvecJets("tour_des_ennemis", {}, demanderJet);
+  return { texte: "Puis le moteur a fait jouer les ennemis (tour_des_ennemis)", resultat };
 }
 
 /**

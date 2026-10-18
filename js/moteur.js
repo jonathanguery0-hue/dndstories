@@ -78,7 +78,7 @@ export const OUTILS_AUTORISES = [
   "jet_de_test", "lancer_des", "commencer_combat", "attaque_joueur", "lancer_sort", "attaque_ennemi",
   "degats_ennemi", "changer_etat_ennemi", "fin_combat", "modifier_pv_joueur", "jet_contre_la_mort",
   "utiliser_capacite", "gerer_inventaire", "modifier_or", "donner_xp", "repos", "modifier_condition",
-  "noter_journal", "boire_potion", "explorer", "fouiller", "descendre",
+  "noter_journal", "boire_potion", "tour_des_ennemis", "explorer", "fouiller", "descendre",
 ];
 
 // Potions reconnues par le moteur et leurs soins.
@@ -315,6 +315,7 @@ export class Moteur {
       const nombre = Math.max(1, Math.min(Number(groupe.nombre) || 1, 12));
       // Bestiaire du jeu d'abord, puis les 300+ monstres du SRD complet (noms anglais : « Owlbear »).
       const base = { ...(cleModele ? srd.MONSTRES[cleModele] : monstreSRD(nomModele) ?? {}) };
+      const attaques = base.multiattaque ? 2 : 1;
       delete base.nom;
       delete base.multiattaque;
       for (const cle of ["ca", "pv", "attaque", "degats", "type_degats", "arme", "sauvegarde", "dex", "xp"]) {
@@ -332,7 +333,7 @@ export class Moteur {
         liste.push({
           nom, ca: Number(base.ca), pv, pv_max: pv, attaque: Number(base.attaque), degats: String(base.degats),
           arme: base.arme ?? "attaque", type_degats: minus(base.type_degats) || null, sauvegarde: Number(base.sauvegarde ?? 0), dex: Number(base.dex ?? 0),
-          xp: Number(base.xp ?? 10), etat: "actif",
+          xp: Number(base.xp ?? 10), etat: "actif", attaques,
         });
       }
     }
@@ -538,6 +539,31 @@ export class Moteur {
     if (niveau > 0) {
       res.emplacements_restants = Object.fromEntries(Object.entries(p.emplacements).map(([n, e]) => [n, e.restants]));
     }
+    return res;
+  }
+
+  /**
+   * Tous les ennemis actifs attaquent le joueur, dans l'ordre d'initiative (2 attaques pour les monstres
+   * à attaques multiples). Un seul outil au lieu d'un appel à l'IA par ennemi : c'est bien moins cher.
+   * En solo, personne ne frappe un héros tombé à 0 PV.
+   */
+  tour_des_ennemis({ avantage = false, desavantage = false, sauf = [] } = {}) {
+    const combat = this.partie.combat;
+    if (!combat) throw new ErreurAction("Aucun combat en cours.");
+    const p = this.perso;
+    const exclus = new Set((Array.isArray(sauf) ? sauf : [sauf]).map(minus));
+    const attaques = [];
+    for (const o of combat.ordre) {
+      const e = combat.ennemis.find((x) => x.id === o.nom);
+      if (!e || e.etat !== "actif" || exclus.has(minus(e.id))) continue;
+      for (let i = 0; i < (e.attaques ?? 1) && p.pv > 0; i++) {
+        attaques.push(this.attaque_ennemi({ ennemi: e.id, avantage, desavantage }));
+      }
+      if (p.pv === 0) break;
+    }
+    const res = { attaques, pv_joueur: p.pv, pv_max: p.pv_max, etat_joueur: etatJoueur(p) };
+    if (!attaques.length) res.note = "Aucun ennemi n'a pu attaquer.";
+    if (p.pv === 0 && !p.mort.mort) res.note = "Le héros est à terre : les ennemis le croient hors de combat et ne s'acharnent pas.";
     return res;
   }
 

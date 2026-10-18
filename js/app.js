@@ -1016,7 +1016,8 @@ $("#bandeau-combat").addEventListener("click", (e) => {
       envoyer(`Je bois ma ${b.dataset.potion.toLowerCase()} !`, { outil: "boire_potion", args: { objet: b.dataset.potion } });
       break;
     case "esquive":
-      envoyer("Je me mets en garde et j'esquive les coups (action Esquiver) ce tour-ci.");
+      envoyer("Je me mets en garde et j'esquive les coups (action Esquiver) ce tour-ci.",
+        { outil: "tour_des_ennemis", args: { desavantage: true } });
       break;
     case "fuite":
       envoyer("Je tente de fuir le combat !");

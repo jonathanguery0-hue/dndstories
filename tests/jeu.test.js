@@ -175,8 +175,8 @@ const appel = (name, args, id = "a0") => ({ id, function: { name, arguments: JSO
 
 function fauxClient(reponses) {
   const requetes = [];
-  const appeler = async (messages, outils) => {
-    requetes.push({ messages: structuredClone(messages), outils });
+  const appeler = async (messages, outils, options) => {
+    requetes.push({ messages: structuredClone(messages), outils, options });
     return reponses.shift();
   };
   return { appeler, requetes };
@@ -373,8 +373,11 @@ test("coût maîtrisé : consignes fixes en tête, état à la fin, consommation
   assert.deepEqual({ ...partie.consommation, cout: undefined }, { appels: 1, entree: 10000, cache: 8000, sortie: 500, cout: undefined });
   // 2 000 × 0,25 + 8 000 × 0,025 + 500 × 2 (dollars par million de jetons)
   assert.ok(Math.abs(partie.consommation.cout - 0.0017) < 1e-9);
-  assert.deepEqual(mj.parametresEconomie("gpt-5-mini"), { reasoning_effort: "low", max_completion_tokens: 6000 });
-  assert.deepEqual(mj.parametresEconomie("gpt-4o-mini"), { max_completion_tokens: 1500 });
+  assert.deepEqual(mj.parametresEconomie("gpt-5-mini"), { reasoning_effort: "minimal", max_completion_tokens: 4000 });
+  assert.equal(mj.parametresEconomie("gpt-5-nano-2025-08-07").reasoning_effort, "minimal");
+  assert.equal(mj.parametresEconomie("gpt-5.1-mini").reasoning_effort, "none");
+  assert.equal(mj.parametresEconomie("o4-mini").reasoning_effort, "low");
+  assert.deepEqual(mj.parametresEconomie("gpt-4o-mini"), { max_completion_tokens: 1200 });
 });
 
 // ------------------------------------------------------------------ dés lancés par le joueur
@@ -822,4 +825,63 @@ test("sous-classes : égide du magicien et ancienne fiche sans sous-classe", () 
   assert.equal(mettreAJourPersonnage(ancien), true);
   assert.equal(ancien.sous_classe, "Champion");
   assert.ok(ancien.capacites.some((c) => c.nom === "Champion : critique amélioré"));
+});
+
+// ------------------------------------------------------------------ économie d'appels
+
+test("tour des ennemis : tous attaquent en un seul outil, jamais un héros à terre", () => {
+  const partie = nouvellePartie(guerrier(), "brumesaule");
+  const m = new Moteur(partie);
+  m.commencer_combat({ ennemis: [{ nom: "Gobelin", nombre: 3 }] });
+  partie.combat.ennemis[2].etat = "vaincu";
+  const r = m.tour_des_ennemis({ sauf: ["Gobelin 2"] });
+  assert.deepEqual(r.attaques.map((a) => a.attaquant), ["Gobelin 1"]);
+  const pv = String(partie.personnage.pv); // juste de quoi assommer, sans mort instantanée
+  for (const e of partie.combat.ennemis.slice(0, 2)) Object.assign(e, { attaque: 50, degats: pv });
+  const r2 = m.tour_des_ennemis({});
+  assert.equal(r2.attaques.length, 1); // … et le second ne frappe pas le héros tombé
+  assert.equal(partie.personnage.pv, 0);
+  assert.match(r2.note, /à terre/);
+});
+
+test("action de combat cliquée : le moteur fait jouer les ennemis, l'IA ne raconte qu'une fois", async () => {
+  const partie = nouvellePartie(guerrier(), "brumesaule");
+  partie.personnage.pv_max = partie.personnage.pv = 999;
+  const m = new Moteur(partie);
+  m.commencer_combat({ ennemis: [{ nom: "Ogre" }] });
+  const { appeler, requetes } = fauxClient([{ content: "Le round est raconté." }]);
+  await mj.jouerTour(partie, "J'attaque l'ogre !", appeler, { outil: "attaque_joueur", args: { arme: "Épée longue", cible: "Ogre" } });
+  assert.equal(requetes.length, 1);
+  assert.equal(requetes[0].options.cache, partie.id);
+  assert.match(requetes[0].messages.at(-1).content, /tour_des_ennemis/);
+  assert.ok(partie.affichage.some((e) => /Ogre attaque/.test(e.texte ?? "")));
+
+  // Dernier ennemi abattu : le moteur termine le combat lui-même.
+  partie.combat.ennemis[0].pv = 1;
+  partie.combat.ennemis[0].ca = 1;
+  const client2 = fauxClient([{ content: "Victoire !" }]);
+  await mj.jouerTour(partie, "Je l'achève !", client2.appeler, { outil: "attaque_joueur", args: { arme: "Épée longue", cible: "Ogre" } });
+  if (partie.combat === null) assert.match(client2.requetes[0].messages.at(-1).content, /fin_combat/);
+});
+
+test("réflexion refusée par le modèle : nouvel essai avec « low »", async () => {
+  const envois = [];
+  const fetchOrigine = globalThis.fetch;
+  globalThis.fetch = async (url, options) => {
+    const corps = JSON.parse(options.body);
+    envois.push(corps);
+    if (corps.reasoning_effort === "minimal") {
+      return new Response(JSON.stringify({ error: { message: "Unsupported value: 'reasoning_effort' does not support 'minimal'", param: "reasoning_effort" } }), { status: 400 });
+    }
+    return new Response(JSON.stringify({ choices: [{ message: { content: "ok" } }] }), { status: 200 });
+  };
+  try {
+    const appeler = mj.clientOpenAI({ cle: "sk-test", modele: "gpt-5-mini" });
+    const r = await appeler([{ role: "user", content: "x" }], null, { cache: "partie-1" });
+    assert.equal(r.content, "ok");
+    assert.deepEqual(envois.map((e) => e.reasoning_effort), ["minimal", "low"]);
+    assert.equal(envois[0].prompt_cache_key, "cd-partie-1");
+  } finally {
+    globalThis.fetch = fetchOrigine;
+  }
 });

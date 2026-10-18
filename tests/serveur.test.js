@@ -148,3 +148,22 @@ test("limite anti-abus : compteurs séparés pour l'IA et la voix, temps d'atten
   assert.equal((await appel("/v1/audio/speech", voix)).status, 429);
   globalThis.fetch = fetchOrigine;
 });
+
+test("relais : réflexion minimale, clé de cache par partie, nouvel essai si refusée", async () => {
+  const envois = [];
+  globalThis.fetch = async (url, options) => {
+    const corps = JSON.parse(options.body);
+    envois.push(corps);
+    if (corps.reasoning_effort === "minimal") {
+      return new Response(JSON.stringify({ error: { message: "Unsupported value for reasoning_effort" } }), { status: 400 });
+    }
+    return new Response(JSON.stringify({ choices: [{ message: { content: "ok" } }] }), { status: 200 });
+  };
+  const r = await worker.fetch(requete("/v1/chat/completions", {
+    code: "lune-bleue-17", corps: { messages: [{ role: "user", content: "Salut" }], cle_cache: "abc-123" },
+  }), { ...ENV, MODELE: "gpt-5-mini" });
+  assert.equal(r.status, 200);
+  assert.deepEqual(envois.map((e) => e.reasoning_effort), ["minimal", "low"]);
+  assert.equal(envois[0].prompt_cache_key, "cd-abc-123");
+  assert.equal(envois[0].cle_cache, undefined);
+});

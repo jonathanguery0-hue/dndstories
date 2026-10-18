@@ -164,14 +164,23 @@ export default {
     const modele = env.MODELE || MODELE_DEFAUT;
     const envoi = { model: modele, messages: corps.messages, ...parametresEconomie(modele) };
     if (Array.isArray(corps.tools) && corps.tools.length) envoi.tools = corps.tools;
+    // Une clé de cache par partie : OpenAI retrouve plus souvent les consignes déjà en cache (moins cher).
+    const cleCache = String(corps.cle_cache ?? "").replace(/[^\w-]/g, "").slice(0, 60);
+    if (cleCache) envoi.prompt_cache_key = `cd-${cleCache}`;
 
+    const appelOpenAI = (corpsEnvoi) => fetch(OPENAI_URL, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${env.OPENAI_API_KEY}`, "Content-Type": "application/json" },
+      body: JSON.stringify(corpsEnvoi),
+    });
     let reponse;
     try {
-      reponse = await fetch(OPENAI_URL, {
-        method: "POST",
-        headers: { Authorization: `Bearer ${env.OPENAI_API_KEY}`, "Content-Type": "application/json" },
-        body: JSON.stringify(envoi),
-      });
+      reponse = await appelOpenAI(envoi);
+      // Modèle qui n'accepte pas le niveau de réflexion le plus bas : on réessaie avec « low ».
+      if (reponse.status === 400 && envoi.reasoning_effort && envoi.reasoning_effort !== "low") {
+        const texteErreur = await reponse.clone().text();
+        if (/reasoning[._]effort/i.test(texteErreur)) reponse = await appelOpenAI({ ...envoi, reasoning_effort: "low" });
+      }
     } catch {
       return erreur(502, "OpenAI ne répond pas. Réessaie dans un instant.");
     }
@@ -187,9 +196,12 @@ export default {
 };
 
 // Limite le coût de chaque appel : peu de « réflexion » cachée (facturée) et une réponse plafonnée.
+// « minimal » pour gpt-5, gpt-5-mini et gpt-5-nano, « none » pour gpt-5.1 et suivants, « low » sinon.
 function parametresEconomie(modele) {
-  if (/^(gpt-5|o\d)/.test(modele)) return { reasoning_effort: "low", max_completion_tokens: 6000 };
-  return { max_completion_tokens: 1500 };
+  if (!/^(gpt-5|o\d)/.test(modele)) return { max_completion_tokens: 1200 };
+  const effort = /^gpt-5(-mini|-nano)?(-\d{4}-\d{2}-\d{2})?$/.test(modele) ? "minimal"
+    : /^gpt-5\.\d/.test(modele) ? "none" : "low";
+  return { reasoning_effort: effort, max_completion_tokens: 4000 };
 }
 
 function listeOrigines(texte) {
