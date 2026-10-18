@@ -78,8 +78,16 @@ export const OUTILS_AUTORISES = [
   "jet_de_test", "lancer_des", "commencer_combat", "attaque_joueur", "lancer_sort", "attaque_ennemi",
   "degats_ennemi", "changer_etat_ennemi", "fin_combat", "modifier_pv_joueur", "jet_contre_la_mort",
   "utiliser_capacite", "gerer_inventaire", "modifier_or", "donner_xp", "repos", "modifier_condition",
-  "noter_journal", "explorer", "fouiller", "descendre",
+  "noter_journal", "boire_potion", "explorer", "fouiller", "descendre",
 ];
+
+// Potions reconnues par le moteur et leurs soins.
+export const POTIONS = {
+  "potion de soins": "2d4+2",
+  "potion de soins supérieurs": "4d4+4",
+  "potion de soins supérieure": "4d4+4",
+  "potion de soins majeurs": "8d4+8",
+};
 
 export class Moteur {
   constructor(partie) {
@@ -804,6 +812,24 @@ export class Moteur {
     return { conditions: p.conditions };
   }
 
+  /** Le personnage boit une potion de soins de son inventaire (soins appliqués par le moteur). */
+  boire_potion({ objet = "Potion de soins" } = {}) {
+    this.verifierConscient();
+    const p = this.perso;
+    const nom = minus(objet) || "potion de soins";
+    const enStock = p.inventaire.find((o) => minus(o.nom) === nom)
+      ?? p.inventaire.find((o) => POTIONS[minus(o.nom)] && minus(o.nom).includes(nom.replace(/^potion( de)?\s*/, "")));
+    if (!enStock || !POTIONS[minus(enStock.nom)]) {
+      const dispo = p.inventaire.filter((o) => POTIONS[minus(o.nom)]).map((o) => `${o.nom} ×${o.quantite}`);
+      throw new ErreurAction(`${p.nom} n'a pas cette potion. Potions : ${dispo.join(", ") || "aucune"}.`);
+    }
+    this.gerer_inventaire({ action: "retirer", objet: enStock.nom });
+    const rd = roll(POTIONS[minus(enStock.nom)]);
+    const etat = this.soignerJoueur(rd.total);
+    this.evt(`🧪 ${p.nom} boit ${enStock.nom} : ${rd.detail} = ${rd.total} PV. ${etat}`);
+    return { potion: enStock.nom, soin: rd.total, pv: p.pv, pv_max: p.pv_max };
+  }
+
   // ---- mode donjon (Le Gouffre aux Mille Marches) : le plan est généré par le moteur
 
   donjon() {
@@ -812,6 +838,8 @@ export class Moteur {
     if (!d?.etages) {
       // Nouvelle partie, ou partie commencée avant la génération du plan : on génère la section de l'étage atteint.
       const etage = Math.max(Number(d?.etage) || 1, 1);
+      // Un aventurier seul ne descend pas dans le Gouffre sans quelques potions.
+      if (!d) this.gerer_inventaire({ action: "ajouter", objet: "Potion de soins", quantite: 2 });
       d = this.partie.donjon = { record: Math.max(d?.record ?? 0, etage), etages: {}, position: null };
       this.genererSection(sectionDeLEtage(etage));
       d.position = d.etages[etage].entree;
@@ -863,6 +891,10 @@ export class Moteur {
     const premiereVisite = !salle.visitee;
     salle.visitee = true;
     const res = { ...this.decrireSalle(), premiere_visite: premiereVisite };
+    if (!premiereVisite) {
+      res.consigne = `Le personnage REVIENT dans « ${salle.nom} », déjà explorée : décris brièvement le retour, `
+        + "sans présenter la salle comme nouvelle.";
+    }
     if (salle.ennemis && !salle.nettoyee) {
       res.combat = this.commencer_combat({ ennemis: salle.ennemis });
       res.consigne = salle.type === "boss"

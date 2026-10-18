@@ -67,6 +67,8 @@ export function creerPersonnage({ nom, race, classe, caracs, competences, histor
     des_de_vie: { faces: k.de_vie, restants: 1 },
     conditions: [],
     mort: { succes: 0, echecs: 0, stable: false, mort: false },
+    // Choix de création, pour pouvoir rejouer le même héros depuis le début.
+    creation: { nom, race, classe, caracs: { ...caracs }, competences: competences.filter((c) => k.competences.includes(c)), historique, apparence },
   };
   perso.pv_max = Math.max(k.de_vie + mod(finales.CON) + (r.pv_par_niveau ?? 0), 1);
   perso.pv = perso.pv_max;

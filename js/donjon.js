@@ -94,10 +94,12 @@ const PIEGES = [
 const OBJETS_RARES = ["Potion de soins supérieurs", "Anneau de protection", "Cape elfique", "Bottes de rapidité",
   "Amulette de santé", "Bâton de flammes mineur", "Bracelets de défense", "Gemme de lumière"];
 
-// Seuils d'XP d'une rencontre pour un personnage seul (DMG 5e) : [moyen, difficile, mortel].
+// Seuils d'XP d'une rencontre pour un personnage seul (DMG 5e) : [facile, moyen, difficile, mortel].
+// Un héros seul n'a personne pour le relever : les salles ordinaires vont de « facile » à « moyen ».
 const SEUILS = {
-  1: [50, 75, 100], 2: [100, 150, 200], 3: [150, 225, 400], 4: [250, 375, 500], 5: [500, 750, 1100],
-  6: [600, 900, 1400], 7: [750, 1100, 1700], 8: [900, 1400, 2100], 9: [1100, 1600, 2400], 10: [1200, 1900, 2800],
+  1: [25, 50, 75, 100], 2: [50, 100, 150, 200], 3: [75, 150, 225, 400], 4: [125, 250, 375, 500],
+  5: [250, 500, 750, 1100], 6: [300, 600, 900, 1400], 7: [350, 750, 1100, 1700], 8: [450, 900, 1400, 2100],
+  9: [550, 1100, 1600, 2400], 10: [600, 1200, 1900, 2800],
 };
 
 const hasard = (n) => des.d(n) - 1; // 0 … n-1
@@ -124,8 +126,13 @@ const multiplicateur = (n) => (n <= 1 ? 1 : n === 2 ? 1.5 : n <= 6 ? 2 : 2.5);
 
 /** Compose une rencontre d'environ `budget` XP avec les monstres du thème. */
 export function composerRencontre(theme, budget) {
-  const pool = monstresUtilisables(theme);
-  const candidats = pool.filter((n) => XP[n] <= budget);
+  let pool = monstresUtilisables(theme);
+  let candidats = pool.filter((n) => XP[n] <= budget);
+  if (!candidats.length) {
+    // Aucun monstre du thème assez faible (ex. niveau 1) : on prend des créatures faibles du bestiaire.
+    pool = [...DU_BESTIAIRE];
+    candidats = pool.filter((n) => XP[n] <= budget);
+  }
   const choisi = candidats.length ? piocher(candidats.slice(-4)) : pool.reduce((a, b) => (XP[a] <= XP[b] ? a : b));
   let nombre = 1;
   while (nombre < 4 && XP[choisi] * (nombre + 1) * multiplicateur(nombre + 1) <= budget) nombre++;
@@ -150,9 +157,10 @@ function moyenneFormule(formule) {
 
 /** Le boss de la section : un monstre fort du thème, renforcé et nommé, avec ses sbires. */
 function composerBoss(theme, niveau, statsDe) {
-  const [, , mortel] = SEUILS[Math.min(niveau, 10)];
+  const [, , difficile, mortel] = SEUILS[Math.min(niveau, 10)];
   const pool = monstresUtilisables(theme);
-  const candidats = pool.filter((n) => XP[n] <= mortel * 0.9);
+  // Le boss (renforcé : PV ×1,6) est choisi pour que le combat reste entre « difficile » et « mortel ».
+  const candidats = pool.filter((n) => XP[n] <= (difficile + mortel) / 2 * 0.75);
   const modele = candidats.length ? candidats.reduce((a, b) => (XP[a] >= XP[b] ? a : b)) : pool[0];
   const base = statsDe(modele);
   const nom = piocher(theme.boss);
@@ -230,9 +238,9 @@ export function genererSection(numero, niveau, statsDe = () => null) {
     const dist = distances(plan);
     const loin = dist.indexOf(Math.max(...dist.filter(Number.isFinite)));
     const noms = melanger(theme.salles);
-    const [moyen, difficile] = SEUILS[niv];
-    // Plus on descend dans la section, plus les rencontres se rapprochent du seuil « difficile ».
-    const budget = Math.round(moyen + (difficile - moyen) * (k / (ETAGES_PAR_SECTION - 1)));
+    const [facile, moyen] = SEUILS[niv];
+    // Plus on descend dans la section, plus les rencontres passent de « facile » à « moyen ».
+    const budget = Math.round(facile + (moyen - facile) * (k / (ETAGES_PAR_SECTION - 1)));
     const autres = melanger(plan.map((_, i) => i).filter((i) => i !== 0 && i !== loin));
     const types = {};
     if (k === 1 || k === 3) types[autres.pop()] = "sanctuaire";

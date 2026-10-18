@@ -250,6 +250,14 @@ input[type=range] { width: 100%; accent-color: var(--or); }
 .groupe-sort { display: inline-flex; gap: .3rem; align-items: center; }
 .groupe-sort select { width: auto; max-width: 210px; padding: .3rem .4rem; font-size: .85rem; }
 
+.fin-partie {
+  margin-top: .6rem; padding: .8rem 1rem; border: 1px solid var(--rouge); border-radius: var(--rayon);
+  background: rgba(192, 83, 63, .1); text-align: center;
+}
+.fin-partie .titre-fin { font-family: "Cinzel", Georgia, serif; color: #e8826f; font-size: 1.1rem; margin: 0 0 .2rem; }
+.fin-partie .aide { margin: 0 0 .6rem; }
+.fin-partie .ligne { justify-content: center; flex-wrap: wrap; }
+
 .choix-ia { display: flex; flex-wrap: wrap; gap: .45rem; margin-top: .6rem; }
 .choix-ia:empty { display: none; }
 .choix-ia button {

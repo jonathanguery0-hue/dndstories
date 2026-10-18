@@ -2,7 +2,7 @@ import * as des from "./des.js";
 import * as srd from "./srd.js";
 import { SCENARIOS } from "./scenarios.js";
 import { creerPersonnage, vueFiche } from "./personnage.js";
-import { nouvellePartie } from "./moteur.js";
+import { nouvellePartie, POTIONS } from "./moteur.js";
 import { clientOpenAI, clientServeur, condenserMemoire, extraireChoix, jouerTour, listerModeles, verifierCode } from "./mj.js";
 import { SERVEUR_URL } from "./serveur.js";
 import { chargerRegles } from "./regles.js";
@@ -677,7 +677,8 @@ function rendrePanneau() {
   $("#onglet-inventaire").innerHTML = `
     <p>💰 <b>${p.or}</b> pièces d'or</p>
     <ul class="liste-simple">${p.inventaire.map((o) => `
-      <li><span>${echapper(o.nom)}</span><span class="valeur">${o.quantite > 1 ? "×" + o.quantite : ""}</span></li>`).join("")
+      <li><span>${echapper(o.nom)}</span><span class="valeur">${o.quantite > 1 ? "×" + o.quantite : ""}
+        ${POTIONS[o.nom.toLowerCase()] && p.pv > 0 ? `<button type="button" class="bouton petit" data-boire="${echapper(o.nom)}">Boire</button>` : ""}</span></li>`).join("")
       || "<li class='discret'>Sac vide</li>"}</ul>
     <h3>Armure</h3><p>${echapper(p.armure)}${p.bouclier ? " + bouclier" : ""}${p.armure_du_mage ? " (Armure du mage)" : ""}</p>`;
 
@@ -704,6 +705,7 @@ function rendrePanneau() {
 
   rendreStatutMobile(p);
   rendreBandeauCombat(p);
+  rendreFinDePartie(p);
   const titre = REGLES.scenarios[PARTIE.scenario]?.titre ?? "";
   const d = PARTIE.donjon;
   const etageCourant = d?.position ? Number(d.position.split("-")[0]) : null;
@@ -731,6 +733,45 @@ $$(".onglets button").forEach((b) => b.addEventListener("click", () => {
   $$(".onglets button").forEach((x) => x.classList.toggle("actif", x === b));
   $$(".onglet").forEach((o) => o.classList.toggle("cache", o.id !== `onglet-${b.dataset.onglet}`));
 }));
+
+// ------------------------------------------------------------------ fin de partie
+
+/** Quand le héros est mort : bilan et boutons pour rejouer, à la place de la saisie. */
+function rendreFinDePartie(p) {
+  const zone = $("#fin-partie");
+  const mort = p.mort.mort;
+  zone.classList.toggle("cache", !mort);
+  $("#formulaire-action").classList.toggle("cache", mort);
+  $("#suggestions").classList.toggle("cache", mort);
+  if (mort) $("#choix-ia").innerHTML = "";
+  if (!mort) return;
+  const record = PARTIE.donjon?.record ? ` · record : étage ${PARTIE.donjon.record}` : "";
+  zone.innerHTML = `
+    <p class="titre-fin">☠️ ${echapper(p.nom)} est tombé au combat</p>
+    <p class="aide">Niveau ${p.niveau} · ${p.xp} XP${record}</p>
+    <div class="ligne">
+      ${p.creation ? `<button type="button" class="bouton principal" data-fin="rejouer">🔁 Rejouer avec ${echapper(p.nom)} (niveau 1)</button>` : ""}
+      <button type="button" class="bouton" data-fin="nouveau">✨ Nouveau héros</button>
+      <button type="button" class="bouton" data-fin="accueil">🏠 Accueil</button>
+    </div>`;
+}
+
+$("#fin-partie").addEventListener("click", (e) => {
+  const b = e.target.closest("[data-fin]");
+  if (!b) return;
+  if (b.dataset.fin === "accueil") chargerAccueil();
+  if (b.dataset.fin === "nouveau") demarrerCreation();
+  if (b.dataset.fin === "rejouer") {
+    try {
+      const perso = creerPersonnage(PARTIE.personnage.creation);
+      const partie = nouvellePartie(perso, PARTIE.scenario);
+      stockage.sauvegarder(partie);
+      ouvrirPartie(partie.id);
+    } catch (err) {
+      $("#erreur-jeu").textContent = err.message;
+    }
+  }
+});
 
 // ------------------------------------------------------------------ carte du donjon
 
@@ -865,7 +906,10 @@ function rendreBandeauCombat(p) {
       <button type="button" class="action-combat" data-action="sort">✨ Lancer</button></span>` : "";
     const capacites = p.capacites.filter((c) => c.utilisations_max).map((c) => `<button type="button" class="action-combat"
       data-action="capacite" data-capacite="${echapper(c.nom)}" ${c.utilisations > 0 ? "" : "disabled"}>${c.nom === "Rage" ? "🔥" : "💪"} ${echapper(c.nom)} (${c.utilisations})</button>`).join("");
-    actions = `${armes}${selectSorts}${capacites}
+    const potions = p.inventaire.filter((o) => POTIONS[o.nom.toLowerCase()]);
+    const boutonPotion = potions.length ? `<button type="button" class="action-combat" data-action="potion"
+      data-potion="${echapper(potions[0].nom)}">🧪 ${echapper(potions[0].nom)} (${potions[0].quantite})</button>` : "";
+    actions = `${armes}${selectSorts}${capacites}${boutonPotion}
       <button type="button" class="action-combat" data-action="esquive">🛡️ Esquiver</button>
       <button type="button" class="action-combat" data-action="fuite">🏃 Fuir</button>`;
   } else {
@@ -911,6 +955,9 @@ $("#bandeau-combat").addEventListener("click", (e) => {
     case "mort":
       envoyer("Je lutte pour rester en vie…", { outil: "jet_contre_la_mort", args: {} });
       break;
+    case "potion":
+      envoyer(`Je bois ma ${b.dataset.potion.toLowerCase()} !`, { outil: "boire_potion", args: { objet: b.dataset.potion } });
+      break;
     case "esquive":
       envoyer("Je me mets en garde et j'esquive les coups (action Esquiver) ce tour-ci.");
       break;
@@ -945,6 +992,13 @@ $("#bascule-panneau").addEventListener("click", ouvrirPanneau);
 $("#fermer-panneau").addEventListener("click", fermerPanneau);
 $("#voile").addEventListener("click", fermerPanneau);
 document.addEventListener("keydown", (e) => { if (e.key === "Escape") fermerPanneau(); });
+
+$("#onglet-inventaire").addEventListener("click", (e) => {
+  const b = e.target.closest("[data-boire]");
+  if (!b || enAttente) return;
+  fermerPanneau();
+  envoyer(`Je bois ma ${b.dataset.boire.toLowerCase()}.`, { outil: "boire_potion", args: { objet: b.dataset.boire } });
+});
 
 $("#onglet-fiche").addEventListener("click", (e) => {
   const b = e.target.closest("[data-capacite]");

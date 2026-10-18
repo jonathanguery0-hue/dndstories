@@ -15,7 +15,9 @@ Rien à installer : ça marche sur ordinateur, tablette et téléphone.
 - 🧙 **Création de personnage** : 9 races, 6 classes (Guerrier, Barbare, Roublard, Rôdeur, Clerc, Magicien), caractéristiques, compétences, historique.
 - 📜 **Fiche toujours à jour** : PV, CA, attaques, sorts, inventaire, or, XP et niveaux.
 - 🎲 **Tu lances tes dés** : pour tes tests, attaques, sauvegardes et ton initiative, la partie s'arrête et tu lances toi-même ton d20 à l'écran (animation, bruit de dés, vibration). Le jeu applique ensuite les règles : l'IA ne peut ni tricher ni « oublier » tes PV.
-- ⚔️ **Combats** : un bandeau de combat montre les ennemis (clique pour viser), l'initiative et le round, avec des boutons d'action rapides (armes, sorts, capacités, esquiver, fuir) ; jets contre la mort à 0 PV.
+- ⚔️ **Combats** : un bandeau de combat montre les ennemis (clique pour viser), l'initiative et le round, avec des boutons d'action rapides (armes, sorts, capacités, potion, esquiver, fuir) ; jets contre la mort à 0 PV. Seul, un héros à terre n'est pas achevé : les ennemis l'ignorent ou le capturent.
+- 🧪 **Potions** : bouton **Boire** dans le Sac et en combat, soins appliqués par le jeu. Le héros du Gouffre commence avec 2 potions de soins.
+- ☠️ **Après une mort** : un écran propose de **rejouer avec le même héros** (niveau 1), de créer un nouveau héros ou de revenir à l'accueil.
 - ✨ **Dé karmique** : après 2 échecs d'affilée, ton prochain d20 est lancé avec l'avantage (deux dés, on garde le meilleur) jusqu'à ta prochaine réussite. Réglable (léger, normal, généreux) ou désactivable dans ⚙️.
 - 🗺️ **Quatre aventures** : *Les Ombres de Brumesaule* (enquête et nécromancie), *La Caravane de l'Aube* (voyage et complot), *Le Gouffre aux Mille Marches* (donjon sans fond généré 5 étages à la fois : plan à explorer avec mini-carte, combats, pièges, trésors, sanctuaires et un boss tous les 5 étages), ou une **aventure libre** improvisée.
 - 📖 **Le SRD 5.1 complet embarqué** : le MJ consulte les vraies règles, les 319 sorts, les 334 monstres et les objets magiques au lieu d'improviser, et peut faire combattre n'importe quel monstre du SRD.

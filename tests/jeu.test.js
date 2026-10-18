@@ -645,3 +645,43 @@ test("donjon : fouiller une salle au trésor ajoute l'or et les objets une seule
   assert.ok(partie.personnage.inventaire.some((o) => o.nom === "Potion de soins"));
   assert.equal(m.fouiller().trouve, false);
 });
+
+test("potions : le héros du donjon en reçoit 2, en boit une et ne peut pas boire ce qu'il n'a pas", () => {
+  const partie = nouvellePartie(magicien(), "donjon");
+  const m = new Moteur(partie);
+  m.explorer({});
+  const stock = () => partie.personnage.inventaire.find((o) => o.nom === "Potion de soins")?.quantite ?? 0;
+  assert.equal(stock(), 2);
+  partie.personnage.pv = 1;
+  const r = m.executer("boire_potion", {});
+  assert.ok(r.soin >= 4 && r.soin <= 10);
+  assert.equal(partie.personnage.pv, Math.min(partie.personnage.pv_max, 1 + r.soin));
+  assert.equal(stock(), 1);
+  m.boire_potion({});
+  assert.equal(stock(), 0);
+  assert.match(m.executer("boire_potion", {}).erreur, /aucune/);
+  // Pas de potions offertes deux fois quand le donjon existe déjà.
+  m.donjon();
+  assert.equal(stock(), 0);
+});
+
+test("donjon : niveau 1, pas de loups dans les premiers étages", () => {
+  for (let graine = 1; graine <= 20; graine++) {
+    des.definirGraine(graine);
+    const section = genererSection(1, 1);
+    for (const etage of section.etages.slice(0, 2)) {
+      for (const salle of Object.values(etage.salles)) {
+        for (const e of salle.ennemis ?? []) assert.notEqual(e.modele ?? e.nom, "Loup", `graine ${graine}, étage ${etage.numero}`);
+      }
+    }
+  }
+});
+
+test("la fiche garde les choix de création pour rejouer après une mort", () => {
+  const p = magicien();
+  assert.equal(p.creation.classe, "Magicien");
+  const bis = creerPersonnage(p.creation);
+  assert.equal(bis.nom, p.nom);
+  assert.equal(bis.pv_max, p.pv_max);
+  assert.equal(bis.niveau, 1);
+});

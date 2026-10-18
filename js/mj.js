@@ -144,6 +144,8 @@ export const OUTILS = [
       recherche: { type: "string", description: "Terme à chercher, de préférence en anglais (ex. 'Grappled', 'Fireball', 'Owlbear', 'Opportunity Attacks')" },
       categorie: { type: "string", enum: CATEGORIES, description: "Pour restreindre la recherche (facultatif)" },
     }, ["recherche"]),
+  outil("boire_potion", "Le personnage boit une potion de soins de son inventaire (soins appliqués automatiquement).",
+    { objet: { type: "string", description: "Nom de la potion, par défaut « Potion de soins »" } }, []),
   outil("noter_journal", "Note un fait important à retenir pour la suite (PNJ rencontré, indice, quête, promesse, lieu). "
     + "Le journal est visible par le joueur : pas de secrets dedans.",
     { note: STR }, ["note"]),
@@ -188,6 +190,11 @@ jouent pas. Quand le combat est fini, appelle fin_combat.
 - Le joueur ne peut utiliser que ses armes, sorts et capacités de sa fiche. Un sort exige un emplacement libre.
 - À 0 PV le joueur est inconscient : à chacun de ses tours, appelle jet_contre_la_mort. S'il meurt, \
 raconte une fin digne et propose de relire son épopée.
+- Ne cite pas dans le récit les PV, la CA ni les bonus des ennemis : ils sont déjà affichés à l'écran. \
+Décris plutôt leur état (« le loup boite, le flanc en sang »).
+- JEU EN SOLO : quand le personnage tombe à 0 PV, les ennemis ne s'acharnent pas sur son corps (sauf \
+morts-vivants ou créatures particulièrement cruelles) : ils le croient mort, fouillent, se disputent ou \
+s'éloignent ; ce sont ses jets contre la mort qui décident de son sort.
 - Récompense l'exploration et les bonnes idées avec donner_xp (25 à 100 XP par étape importante au niveau 1-3).
 - Utilise noter_journal pour retenir les PNJ, indices et quêtes importants.
 - Tu as le SRD 5.1 complet sous la main avec consulter_regles (texte en anglais, que tu traduis pour le \

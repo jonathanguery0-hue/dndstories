@@ -73,8 +73,7 @@ Tu ne fais que mettre en scène ce que le moteur renvoie : n'invente ni salles, 
 - ESCALIER : dans la salle de l'escalier (ou après le boss), propose de descendre (outil descendre).
 - REPOS : repos court possible partout hors combat ; repos long seulement dans un sanctuaire ou après le boss.
 - CHOIX : propose les sorties connues (« Je prends la porte nord »), fouiller, descendre, se reposer ou
-  boire une potion selon la situation. Potion de soins : gerer_inventaire (retirer) puis modifier_pv_joueur
-  soin 2d4+2 (potion de soins supérieurs : 4d4+4).
+  boire une potion selon la situation. Pour boire une potion : outil boire_potion (le personnage en a 2 au départ).
 - Si le personnage meurt, raconte une fin héroïque en indiquant l'étage atteint (son record).`,
   },
   libre: {
