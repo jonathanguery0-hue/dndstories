@@ -1,46 +1,42 @@
 # 🎮 Le serveur du jeu : tes amis jouent sans rien configurer
 
-Ce petit serveur garde **ta** clé OpenAI en sécurité chez Cloudflare et fait parler l'IA pour tous les
+Ce petit serveur garde **ta** clé OpenAI en sécurité et fait parler l'IA pour tous les
 joueurs. Une fois en place, tu partages simplement le lien du jeu : **aucune clé, aucun code** à
 saisir. C'est ton compte OpenAI qui paie les parties (voir « Protéger ton porte-monnaie »).
 
-Cloudflare Workers est **gratuit** jusqu'à 100 000 requêtes par jour, bien plus qu'il n'en faut.
-
 ---
 
-## 1. Créer le serveur (une seule fois, ~10 minutes)
+## Mettre le jeu en ligne avec Vercel (recommandé, ~5 minutes)
 
-1. Crée un compte gratuit sur **https://dash.cloudflare.com/sign-up** et confirme ton e-mail.
-2. Dans le menu de gauche, ouvre **Workers & Pages** (parfois rangé sous *Compute*).
-3. Clique sur **Create** (ou *Create application*), puis **Start with Hello World!** / **Create Worker**.
-4. Donne-lui le nom **`contes-dragons`**, puis clique sur **Deploy**.
-5. Clique sur **Edit code**.
-6. Dans l'éditeur, **efface tout**, puis colle **tout** le contenu du fichier
-   [`serveur/worker.js`](worker.js) (sur GitHub : ouvre le fichier, bouton *Copy raw file* en haut à droite).
-7. Clique sur **Deploy** (en haut à droite).
+Vercel héberge **à la fois** le jeu et le serveur qui garde ta clé. Tu te connectes avec ton compte
+GitHub : pas de nouveau compte, pas de carte bancaire, rien à copier-coller.
 
-## 2. Ajouter ta clé OpenAI
+1. Va sur **https://vercel.com/signup**, choisis **Hobby** (gratuit) puis **Continue with GitHub**,
+   et accepte l'autorisation.
+2. Va sur **https://vercel.com/new**. Dans la liste de tes dépôts, clique sur **Import** à côté de
+   **dndstories**.
+   *(S'il n'apparaît pas : clique sur « Adjust GitHub App Permissions » et autorise le dépôt `dndstories`.)*
+3. Ne touche pas aux réglages de construction. Déplie **Environment Variables** et ajoute :
+   - **Key** : `OPENAI_API_KEY`
+   - **Value** : ta clé OpenAI (`sk-…`)
 
-Dans ton Worker : **Settings → Variables and Secrets → Add** :
+   puis clique sur **Add**.
+4. Clique sur **Deploy**. Au bout d'une minute environ : 🎉 *Congratulations!*
+5. Clique sur la vignette du site (ou **Continue to Dashboard → Visit**) : l'adresse ressemble à
+   **`https://dndstories.vercel.app`**. **C'est ce lien que tu partages** : tes amis jouent sans rien
+   configurer.
 
-| Type | Nom | Valeur |
-|---|---|---|
-| **Secret** | `OPENAI_API_KEY` | ta clé OpenAI (`sk-…`) |
+Chaque mise à jour du jeu sur GitHub est mise en ligne automatiquement sur Vercel.
 
-Clique sur **Deploy** pour enregistrer. C'est tout ce qui est obligatoire !
+> ℹ️ L'offre gratuite Hobby est prévue pour un usage personnel et non commercial : parfait pour jouer
+> entre amis. Si tu commercialises le jeu un jour, il faudra passer à l'offre Pro.
 
-## 3. Brancher le jeu sur ton serveur
+### Changer un réglage plus tard
 
-Ton Worker a une adresse du type **`https://contes-dragons.TON-NOM.workers.dev`** (visible sur sa page).
+Dans Vercel : ton projet → **Settings → Environment Variables** (voir « Réglages facultatifs »
+ci-dessous), puis **Deployments → ⋯ → Redeploy** pour appliquer.
 
-- **Le plus simple :** envoie-la-moi et je l'ajoute au jeu.
-- **Ou toi-même :** sur GitHub, ouvre le fichier `js/serveur.js`, clique sur le crayon ✏️, remplace
-  `""` par ton adresse entre guillemets — `export const SERVEUR_URL = "https://contes-dragons.TON-NOM.workers.dev";` —
-  puis **Commit changes**. Le site se met à jour en une minute.
-
-Ensuite, partage simplement : **https://jonathanguery0-hue.github.io/dndstories/**
-
-## 4. Protéger ton porte-monnaie 💸
+## Protéger ton porte-monnaie 💸
 
 Le serveur se protège déjà tout seul :
 
@@ -58,7 +54,7 @@ Et la meilleure protection, de ton côté :
 
 ## Réglages facultatifs
 
-À ajouter dans **Settings → Variables and Secrets** seulement si tu en as besoin :
+À ajouter dans les variables d'environnement seulement si tu en as besoin :
 
 | Nom | Valeur | À quoi ça sert |
 |---|---|---|
@@ -78,3 +74,10 @@ Avec des codes, tu peux envoyer à chacun un lien qui le connecte directement :
 - Adresses : `GET /verifier`, `POST /v1/chat/completions` (l'IA) et `POST /v1/audio/speech` (la voix IA).
 - Il ne stocke rien : les parties restent dans le navigateur de chaque joueur. Les journaux du Worker
   (*Logs*) montrent le nombre de demandes, sans le contenu des parties.
+
+## Autre possibilité : Cloudflare Workers
+
+Si tu préfères Cloudflare (le jeu reste alors sur GitHub Pages) : crée un Worker sur
+dash.cloudflare.com (**Workers & Pages → Create → Hello World**), remplace son code par le contenu de
+[`serveur/worker.js`](worker.js), ajoute le secret `OPENAI_API_KEY` dans **Settings → Variables and
+Secrets**, puis indique son adresse dans `js/serveur.js` (`ADRESSE_CONFIGUREE`).

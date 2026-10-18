@@ -28,8 +28,9 @@ Rien à installer : ça marche sur ordinateur, tablette et téléphone.
 Ouvre le lien et joue : **aucune clé, aucun code**. L'IA passe par le serveur du jeu, qui garde la
 clé OpenAI de l'organisateur en sécurité.
 
-**Tu organises ?** Mets en place le serveur une seule fois (~10 minutes, gratuit) en suivant
-[`serveur/README.md`](serveur/README.md), puis partage le lien du jeu.
+**Tu organises ?** Mets le jeu en ligne sur **Vercel** avec ton compte GitHub (~5 minutes, gratuit,
+une seule variable : ta clé OpenAI) en suivant [`serveur/README.md`](serveur/README.md), puis
+partage le lien `https://….vercel.app`.
 
 <details>
 <summary>Jouer avec ta propre clé OpenAI</summary>
@@ -117,7 +118,8 @@ mensuelle** sur platform.openai.com → *Limits*.
   - `stockage.js` : sauvegardes et réglages dans le navigateur
   - `plateau.js` : le plateau où le joueur lance ses d20
   - `voix.js` : lecteur vocal ; `tts.js` : voix IA d'OpenAI (via la clé du joueur ou le relais)
-  - `serveur.js` : adresse du serveur relais ; le relais lui-même est dans `serveur/worker.js`
+  - `serveur.js` : adresse du serveur du jeu ; le serveur lui-même est dans `serveur/worker.js`,
+    branché sur Vercel par le dossier `api/`
   - `app.js` : l'interface ; `sw.js` + `manifest.webmanifest` : installation comme application
 - **Tester en local** : `python3 -m http.server` à la racine puis ouvrir http://localhost:8000
 - **Tests automatiques** : `npm test` (Node.js 20 ou plus)

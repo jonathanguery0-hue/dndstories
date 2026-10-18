@@ -1,4 +1,4 @@
-// Relais Contes & Dragons — Cloudflare Worker
+// Relais Contes & Dragons — fonctionne sur Vercel (dossier api/, voir serveur/README.md) ou Cloudflare Workers.
 //
 // Garde la clé OpenAI de l'organisateur côté serveur : les joueurs n'ont rien à saisir.
 // À copier tel quel dans l'éditeur de Cloudflare (voir serveur/README.md).
@@ -50,8 +50,14 @@ function dansLaLimite(cle, limite, maintenant = Date.now()) {
 export default {
   async fetch(request, env) {
     const origine = request.headers.get("Origin") ?? "";
-    const autorisees = env.ORIGINES ? listeOrigines(env.ORIGINES) : [ORIGINE_PAR_DEFAUT];
+    const adresse = new URL(request.url);
+    // Le site lui-même (Vercel héberge le jeu et le serveur à la même adresse) est toujours autorisé.
+    const autorisees = [adresse.origin, ...(env.ORIGINES ? listeOrigines(env.ORIGINES) : [ORIGINE_PAR_DEFAUT])];
     const origineOk = !origine || autorisees.includes(origine);
+    const referent = request.headers.get("Referer") ?? "";
+    // Requête venant d'une page du site du jeu (un navigateur envoie l'origine, ou au moins la page d'appel).
+    const depuisLeSite = Boolean(origine) || request.headers.get("Sec-Fetch-Site") === "same-origin"
+      || autorisees.some((o) => referent.startsWith(`${o}/`));
     const cors = {
       "Access-Control-Allow-Origin": origineOk && origine ? origine : "*",
       "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
@@ -68,14 +74,14 @@ export default {
     if (request.method === "OPTIONS") return new Response(null, { status: 204, headers: cors });
     if (!origineOk) return erreur(403, "Ce site n'est pas autorisé à utiliser ce serveur.");
 
-    const chemin = new URL(request.url).pathname.replace(/\/+$/, "") || "/";
+    const chemin = adresse.pathname.replace(/^\/api(?=\/|$)/, "").replace(/\/+$/, "") || "/";
     if (chemin === "/") return json(200, { service: "Contes & Dragons", ok: true });
 
     const code = (request.headers.get("X-Code-Acces") ?? "").trim();
     const ami = trouverJoueur(code, env.CODES_ACCES);
     const accesLibre = !env.CODES_ACCES || env.ACCES_LIBRE === "oui";
     // Sans code, il faut venir du site du jeu (un navigateur envoie toujours l'origine de la page).
-    const joueur = ami ?? (accesLibre && origine && !code ? "anonyme" : null);
+    const joueur = ami ?? (accesLibre && depuisLeSite && !code ? "anonyme" : null);
     const refus = () => (code
       ? erreur(401, "Code d'accès invalide.", "code_invalide")
       : erreur(401, "Ce jeu demande un code d'accès.", "code_requis"));
@@ -87,7 +93,8 @@ export default {
 
     if (joueur && (chemin === "/v1/chat/completions" || chemin === "/v1/audio/speech")) {
       const limite = Number(env.LIMITE) || LIMITE_DEFAUT;
-      const ip = request.headers.get("CF-Connecting-IP") ?? "inconnue";
+      const ip = request.headers.get("CF-Connecting-IP") ?? request.headers.get("X-Real-IP")
+        ?? request.headers.get("X-Forwarded-For")?.split(",")[0].trim() ?? "inconnue";
       const cle = ami ? `ami:${ami}` : `ip:${ip}`;
       if (!dansLaLimite(cle, ami ? limite * 2 : limite)) {
         console.log(`limite atteinte ${cle}`);

@@ -107,3 +107,22 @@ test("relais ouvert : sans code depuis le site du jeu, refusé ailleurs, limité
   assert.equal((await worker.fetch(depuis(ORIGINE, "6.6.6.6"), { ...prive, ACCES_LIBRE: "oui" })).status, 200);
   globalThis.fetch = fetchOrigine;
 });
+
+test("relais sur Vercel : adresses en /api et jeu hébergé à la même adresse", async () => {
+  const env = { OPENAI_API_KEY: "sk-secrete" };
+  const site = "https://dndstories.vercel.app";
+  // Vérification depuis une page du site : pas d'en-tête Origin (requête GET), mais la page d'appel.
+  const verif = await worker.fetch(new Request(`${site}/api/verifier`, { headers: { Referer: `${site}/` } }), env);
+  assert.equal(verif.status, 200);
+  assert.equal((await verif.json()).joueur, "anonyme");
+  globalThis.fetch = async () => new Response(JSON.stringify({ choices: [{ message: { content: "ok" } }] }), { status: 200 });
+  const r = await worker.fetch(new Request(`${site}/api/v1/chat/completions`, {
+    method: "POST", headers: { Origin: site, "Content-Type": "application/json" },
+    body: JSON.stringify({ messages: [{ role: "user", content: "x" }] }),
+  }), env);
+  assert.equal(r.status, 200);
+  globalThis.fetch = fetchOrigine;
+  // Une page d'un autre site reste refusée.
+  const pirate = await worker.fetch(new Request(`${site}/api/verifier`, { headers: { Referer: "https://pirate.example/" } }), env);
+  assert.equal(pirate.status, 401);
+});
