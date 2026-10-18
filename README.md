@@ -15,7 +15,7 @@ Rien à installer : ça marche sur ordinateur, tablette et téléphone.
 - 🧙 **Création de personnage** : 9 races, 6 classes (Guerrier, Barbare, Roublard, Rôdeur, Clerc, Magicien), caractéristiques, compétences, historique.
 - 📜 **Fiche toujours à jour** : PV, CA, attaques, sorts, inventaire, or, XP et niveaux.
 - 🎲 **Tu lances tes dés** : pour tes tests, attaques, sauvegardes et ton initiative, la partie s'arrête et tu lances toi-même ton d20 à l'écran (animation, bruit de dés, vibration). Le jeu applique ensuite les règles : l'IA ne peut ni tricher ni « oublier » tes PV.
-- ⚔️ **Combats** : initiative, attaques, sorts, ennemis avec barres de vie, jets contre la mort.
+- ⚔️ **Combats** : un bandeau de combat montre les ennemis (clique pour viser), l'initiative et le round, avec des boutons d'action rapides (armes, sorts, capacités, esquiver, fuir) ; jets contre la mort à 0 PV.
 - ✨ **Dé karmique** : après 2 échecs d'affilée, ton prochain d20 est lancé avec l'avantage (deux dés, on garde le meilleur) jusqu'à ta prochaine réussite. Réglable (léger, normal, généreux) ou désactivable dans ⚙️.
 - 🗺️ **Trois aventures** : *Les Ombres de Brumesaule* (enquête et nécromancie), *La Caravane de l'Aube* (voyage et complot), ou une **aventure libre** improvisée.
 - 📖 **Le SRD 5.1 complet embarqué** : le MJ consulte les vraies règles, les 319 sorts, les 334 monstres et les objets magiques au lieu d'improviser, et peut faire combattre n'importe quel monstre du SRD.

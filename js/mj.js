@@ -365,6 +365,7 @@ export async function jouerTour(partie, texteJoueur, appeler, actionDirecte = nu
   let messageJoueur = texteJoueur || `[Début de la partie] ${sc.intro}`;
   const moteur = new Moteur(partie);
   moteur.seuilKarma = seuilKarma;
+  const enCombatAvant = Boolean(partie.combat);
   if (actionDirecte) {
     // Action cliquée dans la fiche : le moteur l'applique tout de suite, l'IA n'a plus qu'à la raconter.
     const resultat = await moteur.executerAvecJets(actionDirecte.outil, actionDirecte.args, demanderJet);
@@ -408,6 +409,8 @@ export async function jouerTour(partie, texteJoueur, appeler, actionDirecte = nu
   }
   if (!termine) narration.push("(Le maître du jeu marque une pause… Que fais-tu ?)");
 
+  // Chaque action du joueur pendant un combat correspond à un round.
+  if (enCombatAvant && partie.combat && texteJoueur) partie.combat.round += 1;
   const brut = narration.join("\n\n") || "(Le maître du jeu reste silencieux… Reformule ton action.)";
   const { texte: texteMj, choix } = extraireChoix(brut);
   partie.messages.push({ role: "user", content: messageJoueur }, { role: "assistant", content: texteMj });

@@ -195,6 +195,39 @@ input[type=range] { width: 100%; accent-color: var(--or); }
 .de-anime { display: inline-block; animation: rouler 1s infinite linear; }
 @keyframes rouler { to { transform: rotate(360deg); } }
 
+/* ---- Bandeau de combat */
+.panneau .combat { display: none !important; } /* remplacé par le bandeau au-dessus du récit */
+.bandeau-combat {
+  flex-shrink: 0; margin-bottom: .6rem; padding: .6rem .7rem; border-radius: var(--rayon);
+  background: linear-gradient(180deg, rgba(192, 83, 63, .18), rgba(192, 83, 63, .06)); border: 1px solid var(--rouge);
+}
+.entete-combat { display: flex; justify-content: space-between; align-items: baseline; gap: .6rem; flex-wrap: wrap; margin-bottom: .45rem; }
+.titre-combat { font-family: "Cinzel", Georgia, serif; color: #e8826f; font-weight: 700; }
+.ordre-combat { font-size: .78rem; color: var(--discret); display: flex; gap: .3rem; flex-wrap: wrap; }
+.ordre-combat span { padding: 0 .2rem; }
+.ordre-combat .moi { color: var(--or); font-weight: 600; }
+.ennemis-combat { display: flex; gap: .45rem; overflow-x: auto; padding-bottom: .15rem; scrollbar-width: thin; }
+.carte-ennemi {
+  flex: 0 0 auto; min-width: 128px; max-width: 180px; text-align: left; cursor: pointer; font: inherit;
+  background: var(--fond-2); color: var(--texte); border: 1px solid var(--bord); border-radius: 8px; padding: .35rem .5rem;
+}
+.carte-ennemi .nom { display: block; font-weight: 600; font-size: .9rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.carte-ennemi .details { display: block; font-size: .75rem; color: var(--discret); }
+.jauge-ennemi { display: block; height: 6px; border-radius: 99px; background: #12100c; margin: .25rem 0; overflow: hidden; }
+.jauge-ennemi > span { display: block; height: 100%; background: var(--rouge); transition: width .4s; }
+.carte-ennemi.ciblee { border-color: var(--or); box-shadow: 0 0 0 1px var(--or) inset, 0 0 12px rgba(212, 166, 74, .3); }
+.carte-ennemi.hors-combat { opacity: .4; cursor: default; }
+.actions-combat { display: flex; flex-wrap: wrap; gap: .4rem; margin-top: .5rem; align-items: center; }
+.action-combat {
+  background: var(--fond-2); color: var(--texte); border: 1px solid var(--or-fonce); border-radius: 8px;
+  padding: .35rem .65rem; font: inherit; font-size: .88rem; cursor: pointer;
+}
+.action-combat:hover:not(:disabled) { border-color: var(--or); background: #2f271b; }
+.action-combat:disabled { opacity: .45; cursor: not-allowed; }
+.action-combat.urgente { border-color: var(--rouge); color: #f0a090; font-weight: 600; }
+.groupe-sort { display: inline-flex; gap: .3rem; align-items: center; }
+.groupe-sort select { width: auto; max-width: 210px; padding: .3rem .4rem; font-size: .85rem; }
+
 .choix-ia { display: flex; flex-wrap: wrap; gap: .45rem; margin-top: .6rem; }
 .choix-ia:empty { display: none; }
 .choix-ia button {
@@ -351,6 +384,10 @@ label.case input { accent-color: var(--or); width: auto; }
   .saisie textarea { min-height: 2.6rem; }
   .suggestions { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; }
   .suggestions button { flex-shrink: 0; }
+  .bandeau-combat { padding: .45rem .5rem; margin-bottom: .45rem; }
+  .actions-combat { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; }
+  .action-combat { flex-shrink: 0; }
+  .ordre-combat { display: none; }
 
   /* Bandeau compact toujours visible : PV, CA et ennemis */
   .statut-mobile {

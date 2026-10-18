@@ -702,6 +702,7 @@ function rendrePanneau() {
     : '<p class="discret">Le maître du jeu notera ici les personnages, indices et quêtes importants.</p>') + consommation;
 
   rendreStatutMobile(p);
+  rendreBandeauCombat(p);
 
   const combat = $("#combat");
   if (PARTIE.combat) {
@@ -724,6 +725,109 @@ $$(".onglets button").forEach((b) => b.addEventListener("click", () => {
   $$(".onglet").forEach((o) => o.classList.toggle("cache", o.id !== `onglet-${b.dataset.onglet}`));
 }));
 
+// ------------------------------------------------------------------ bandeau de combat
+
+let cibleCombat = null;
+const TYPES_SORTS_COMBAT = ["attaque", "auto", "sauvegarde", "soin", "sommeil"];
+
+/** Bandeau affiché pendant un combat : ennemis (cliquer pour viser) et actions rapides. */
+function rendreBandeauCombat(p) {
+  const bandeau = $("#bandeau-combat");
+  const combat = PARTIE.combat;
+  if (!combat) {
+    bandeau.classList.add("cache");
+    bandeau.innerHTML = "";
+    cibleCombat = null;
+    return;
+  }
+  const actifs = combat.ennemis.filter((e) => e.etat !== "vaincu" && e.etat !== "enfui");
+  if (!actifs.some((e) => e.id === cibleCombat)) cibleCombat = actifs[0]?.id ?? null;
+  const aTerre = p.pv === 0 && !p.mort.mort;
+
+  const cartes = combat.ennemis.map((e) => {
+    const pct = Math.round((e.pv / e.pv_max) * 100);
+    const inactif = e.etat === "vaincu" || e.etat === "enfui";
+    return `<button type="button" class="carte-ennemi ${e.id === cibleCombat ? "ciblee" : ""} ${inactif ? "hors-combat" : ""}"
+      data-cible="${echapper(e.id)}" ${inactif ? "disabled" : ""} title="Viser ${echapper(e.id)}">
+      <span class="nom">${e.id === cibleCombat ? "🎯 " : ""}${echapper(e.id)}</span>
+      <span class="jauge-ennemi"><span style="width:${pct}%"></span></span>
+      <span class="details">${inactif ? (e.etat === "vaincu" ? "☠️ vaincu" : "🏃 enfui") : `${e.pv}/${e.pv_max} PV · CA ${e.ca}`}${e.etat === "endormi" ? " · 💤" : ""}</span>
+    </button>`;
+  }).join("");
+
+  let actions = "";
+  if (p.mort.mort) {
+    actions = '<span class="discret">Ton héros est tombé…</span>';
+  } else if (aTerre) {
+    actions = '<button type="button" class="action-combat urgente" data-action="mort">💀 Jet contre la mort</button>';
+  } else if (cibleCombat) {
+    const armes = p.attaques.map((a) => `<button type="button" class="action-combat" data-action="arme" data-arme="${echapper(a.nom)}"
+      title="${signe(a.bonus)} pour toucher · ${echapper(a.degats)}">${a.distance ? "🏹" : "⚔️"} ${echapper(a.nom)}</button>`).join("");
+    const sorts = p.sorts.filter((s) => TYPES_SORTS_COMBAT.includes(s.type));
+    const selectSorts = sorts.length ? `<span class="groupe-sort">
+      <select id="sort-combat" aria-label="Sort">${sorts.map((s) => {
+        const empl = s.niveau ? p.emplacements[s.niveau]?.restants ?? 0 : null;
+        return `<option value="${echapper(s.nom)}" ${empl === 0 ? "disabled" : ""}>${echapper(s.nom)}${s.niveau ? ` (niv. ${s.niveau} · ${empl} restant${empl > 1 ? "s" : ""})` : " (mineur)"}</option>`;
+      }).join("")}</select>
+      <button type="button" class="action-combat" data-action="sort">✨ Lancer</button></span>` : "";
+    const capacites = p.capacites.filter((c) => c.utilisations_max).map((c) => `<button type="button" class="action-combat"
+      data-action="capacite" data-capacite="${echapper(c.nom)}" ${c.utilisations > 0 ? "" : "disabled"}>${c.nom === "Rage" ? "🔥" : "💪"} ${echapper(c.nom)} (${c.utilisations})</button>`).join("");
+    actions = `${armes}${selectSorts}${capacites}
+      <button type="button" class="action-combat" data-action="esquive">🛡️ Esquiver</button>
+      <button type="button" class="action-combat" data-action="fuite">🏃 Fuir</button>`;
+  } else {
+    actions = '<span class="discret">Plus aucun ennemi debout : le maître du jeu va clore le combat.</span>';
+  }
+
+  bandeau.innerHTML = `
+    <div class="entete-combat">
+      <span class="titre-combat">⚔️ Combat · round ${combat.round}</span>
+      <span class="ordre-combat">${combat.ordre.map((o) => `<span class="${o.joueur ? "moi" : ""}">${echapper(o.nom)} <small>${o.init}</small></span>`).join("›")}</span>
+    </div>
+    <div class="ennemis-combat">${cartes}</div>
+    <div class="actions-combat">${actions}</div>`;
+  bandeau.classList.remove("cache");
+}
+
+$("#bandeau-combat").addEventListener("click", (e) => {
+  const carte = e.target.closest("[data-cible]");
+  if (carte) {
+    cibleCombat = carte.dataset.cible;
+    rendreBandeauCombat(vueFiche(PARTIE.personnage));
+    return;
+  }
+  const b = e.target.closest("[data-action]");
+  if (!b || enAttente) return;
+  const cible = cibleCombat;
+  switch (b.dataset.action) {
+    case "arme":
+      envoyer(`J'attaque ${cible} avec ${b.dataset.arme} !`,
+        { outil: "attaque_joueur", args: { arme: b.dataset.arme, cible } });
+      break;
+    case "sort": {
+      const nom = $("#sort-combat").value;
+      const sort = vueFiche(PARTIE.personnage).sorts.find((s) => s.nom === nom);
+      const cibles = sort?.type === "soin" ? ["joueur"] : sort?.type === "sommeil" ? [] : [cible];
+      envoyer(sort?.type === "soin" ? `Je lance ${nom} sur moi-même !` : `Je lance ${nom} sur ${cible} !`,
+        { outil: "lancer_sort", args: { sort: nom, cibles } });
+      break;
+    }
+    case "capacite":
+      envoyer(`J'utilise ma capacité « ${b.dataset.capacite} » !`, { outil: "utiliser_capacite", args: { nom: b.dataset.capacite } });
+      break;
+    case "mort":
+      envoyer("Je lutte pour rester en vie…", { outil: "jet_contre_la_mort", args: {} });
+      break;
+    case "esquive":
+      envoyer("Je me mets en garde et j'esquive les coups (action Esquiver) ce tour-ci.");
+      break;
+    case "fuite":
+      envoyer("Je tente de fuir le combat !");
+      break;
+    default:
+  }
+});
+
 function rendreStatutMobile(p) {
   const ennemis = PARTIE.combat?.ennemis.filter((e) => e.etat !== "vaincu") ?? [];
   $("#statut-mobile").innerHTML = `
@@ -731,7 +835,7 @@ function rendreStatutMobile(p) {
       <span class="jauge ${classeJauge(p.pv, p.pv_max)}"><span style="width:${Math.round((p.pv / p.pv_max) * 100)}%"></span></span></span>
     <span>CA <b>${p.ca}</b></span>
     ${p.conditions.map((c) => `<span class="pastille">${echapper(c)}</span>`).join("")}
-    ${ennemis.length ? `<span class="ennemis-mini">⚔️ ${ennemis.map((e) => `${echapper(e.id)} ${e.pv}/${e.pv_max}`).join(" · ")}</span>` : ""}`;
+    ${ennemis.length && !PARTIE.combat ? `<span class="ennemis-mini">⚔️ ${ennemis.map((e) => `${echapper(e.id)} ${e.pv}/${e.pv_max}`).join(" · ")}</span>` : ""}`;
 }
 
 function ouvrirPanneau() {
@@ -768,7 +872,7 @@ async function envoyer(texte, actionDirecte = null) {
   if (texte) {
     h.insertAdjacentHTML("beforeend", rendreEntree({ type: "joueur", texte }));
     h.scrollTop = h.scrollHeight;
-    $$("#choix-ia button").forEach((b) => { b.disabled = true; });
+    $$("#choix-ia button, #bandeau-combat button").forEach((b) => { b.disabled = true; });
     $$("[data-capacite]").forEach((b) => { b.disabled = true; });
   }
   try {
