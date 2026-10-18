@@ -482,3 +482,15 @@ test("dé karmique : avantage après 2 échecs d'affilée, jusqu'à la prochaine
   await test([1]);
   assert.equal(jets.at(-1).nombre, 1);
 });
+
+test("aventure donjon : disponible et transmise au maître du jeu", async () => {
+  const { SCENARIOS } = await import("../js/scenarios.js");
+  assert.equal(SCENARIOS.donjon.titre, "Le Gouffre aux Mille Marches");
+  const partie = nouvellePartie(guerrier(), "donjon");
+  const consignes = mj.consignesFixes(partie);
+  assert.match(consignes, /MODE DONJON/);
+  assert.match(consignes, /BOSS tous les 5 étages/);
+  const { appeler, requetes } = fauxClient([{ content: "Le Gouffre s'ouvre devant toi.\nCHOIX: Je descends | Je regarde autour" }]);
+  await mj.jouerTour(partie, "", appeler);
+  assert.match(requetes[0].messages.at(-1).content, /Gouffre aux Mille Marches/);
+});

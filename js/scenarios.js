@@ -56,6 +56,34 @@ PROGRESSION SUGGÉRÉE :
 RÉCOMPENSES : 40 po de Tobias, bénédiction du monastère, une potion de soins.
 Adapte librement selon les choix du joueur.`,
   },
+  donjon: {
+    titre: "Le Gouffre aux Mille Marches",
+    accroche: "Un donjon sans fond, salle après salle, étage après étage. Combats, butin et un boss tous les cinq étages : jusqu'où descendras-tu ?",
+    niveau: "Tous niveaux · combats en série",
+    intro: "Commence la partie : le personnage se tient au bord du Gouffre aux Mille Marches, au fond d'une ruine envahie de lierre. Décris brièvement l'escalier qui s'enfonce dans le noir, puis fais-le entrer dans la première salle (étage 1, salle 1) et lance directement le premier combat.",
+    notes_mj: `MODE DONJON (« dungeon crawler ») : l'intérêt est l'enchaînement des combats. Va droit au but.
+- Récit COURT : 40 à 100 mots par réponse, 2-3 phrases d'ambiance par salle, pas de longs dialogues.
+- STRUCTURE : chaque étage compte 3 salles. Note la progression dans le journal (« Étage 2, salle 1 »).
+  La plupart des salles contiennent un combat (lance commencer_combat dès l'entrée ou après une phrase).
+  Varie de temps en temps : un piège (jet de sauvegarde, modifier_pv_joueur), un coffre (Investigation
+  ou Escamotage pour l'ouvrir, butin), une énigme rapide, ou une salle vide pour souffler.
+- APRÈS CHAQUE SALLE : propose dans la ligne CHOIX 2 ou 3 portes ou passages différents (« La porte
+  aux runes rouges », « Le couloir inondé », « L'escalier qui descend » quand l'étage est fini).
+- DIFFICULTÉ : adapte les rencontres au niveau du personnage et à l'étage (de plus en plus dur).
+  Niveau 1 : 2 ou 3 Kobolds, Rats géants, Gobelins, 1 Loup ou 2 Squelettes.
+  Niveau 2 : Gobelins + Hobgobelin, 2 Zombies, Orc, Goule.
+  Niveau 3 et plus : Gnolls, Orcs, Araignée géante, Gobelours, puis monstres du SRD plus puissants
+  (consulter_regles pour choisir : « Bugbear », « Ghast », « Wight », « Minotaur »…).
+- BOSS tous les 5 étages (étage 5, 10, 15…) : une créature nommée, plus forte (ex. « Grokk, chef
+  gobelours » à partir du Gobelours avec plus de PV, ou un monstre du SRD : Ogre, Owlbear, Minotaur),
+  avec un ou deux sbires. Raconte-le avec un peu plus d'emphase.
+- BUTIN après les combats : or (modifier_or, 5 à 30 po × étage), potions de soins (gerer_inventaire,
+  « Potion de soins » : boire = modifier_pv_joueur soin 2d4+2), parfois une arme ou un objet magique
+  du SRD après un boss. Donne l'XP des combats avec fin_combat (automatique).
+- REPOS : à la fin de chaque étage, l'escalier passe par un sanctuaire où le personnage peut faire
+  un repos court. Un repos long seulement après un boss (feu de camp sûr).
+- Si le personnage meurt, raconte une fin héroïque en indiquant l'étage atteint (son record).`,
+  },
   libre: {
     titre: "Aventure libre",
     accroche: "Aucun scénario imposé : le maître du jeu improvise un monde et une aventure autour de votre personnage et de son historique.",
