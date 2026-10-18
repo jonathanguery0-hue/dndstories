@@ -440,3 +440,18 @@ test("un tour de jeu attend les jets du joueur", async () => {
 function _appelTest(name, args) {
   return { id: "t", function: { name, arguments: JSON.stringify(args) } };
 }
+
+test("le maître du jeu propose 2 ou 3 actions, retirées du récit", async () => {
+  const partie = nouvellePartie(guerrier(), "libre");
+  const { appeler, requetes } = fauxClient([
+    { content: "La porte grince.\n\nQue fais-tu ?\nCHOIX: J'ouvre la porte | Je tends l'oreille | Je fais demi-tour" },
+  ]);
+  const res = await mj.jouerTour(partie, "J'avance.", appeler);
+  assert.deepEqual(res.choix, ["J'ouvre la porte", "Je tends l'oreille", "Je fais demi-tour"]);
+  assert.equal(partie.affichage.at(-1).texte, "La porte grince.\n\nQue fais-tu ?");
+  assert.deepEqual(partie.affichage.at(-1).choix, res.choix);
+  assert.doesNotMatch(partie.messages.at(-1).content, /CHOIX/); // l'historique reste léger
+  assert.match(requetes[0].messages[0].content, /CHOIX: première action/);
+  assert.deepEqual(mj.extraireChoix("Récit sans choix.").choix, []);
+  assert.deepEqual(mj.extraireChoix("Récit\n**CHOIX :** 1. « J'attaque » | 2. Je fuis").choix, ["J'attaque", "Je fuis"]);
+});

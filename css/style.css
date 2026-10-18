@@ -195,6 +195,16 @@ input[type=range] { width: 100%; accent-color: var(--or); }
 .de-anime { display: inline-block; animation: rouler 1s infinite linear; }
 @keyframes rouler { to { transform: rotate(360deg); } }
 
+.choix-ia { display: flex; flex-wrap: wrap; gap: .45rem; margin-top: .6rem; }
+.choix-ia:empty { display: none; }
+.choix-ia button {
+  flex: 1 1 auto; text-align: left; background: rgba(212, 166, 74, .1); color: var(--texte);
+  border: 1px solid var(--or-fonce); border-radius: 10px; padding: .45rem .8rem; font: inherit; font-size: .95rem;
+  cursor: pointer; transition: background .15s, border-color .15s;
+}
+.choix-ia button::before { content: "➤ "; color: var(--or); }
+.choix-ia button:hover:not(:disabled) { background: rgba(212, 166, 74, .22); border-color: var(--or); }
+.choix-ia button:disabled { opacity: .45; cursor: wait; }
 .saisie { display: flex; gap: .5rem; margin-top: .6rem; align-items: stretch; }
 .saisie textarea { resize: none; min-height: 3rem; max-height: 9rem; }
 .suggestions { display: flex; flex-wrap: wrap; gap: .4rem; margin-top: .5rem; }

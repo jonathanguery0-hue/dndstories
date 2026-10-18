@@ -606,7 +606,20 @@ function rendreHistoire({ debutDernierTour = false } = {}) {
   // Après un tour, on se place au début de la nouvelle réponse pour la lire depuis le début.
   const repere = debutDernierTour ? [...h.querySelectorAll(".joueur")].at(-1) : null;
   h.scrollTop = repere ? repere.offsetTop - 8 : h.scrollHeight;
+  rendreChoix();
 }
+
+/** Boutons des actions proposées par le maître du jeu dans sa dernière réponse. */
+function rendreChoix() {
+  const derniere = PARTIE.affichage.at(-1);
+  const choix = derniere?.type === "mj" ? derniere.choix ?? [] : [];
+  $("#choix-ia").innerHTML = choix.map((c) => `<button type="button" data-choix="${echapper(c)}">${echapper(c)}</button>`).join("");
+}
+
+$("#choix-ia").addEventListener("click", (e) => {
+  const b = e.target.closest("[data-choix]");
+  if (b && !enAttente) envoyer(b.dataset.choix);
+});
 
 function classeJauge(v, max) {
   const r = max ? v / max : 0;
@@ -754,6 +767,7 @@ async function envoyer(texte, actionDirecte = null) {
   if (texte) {
     h.insertAdjacentHTML("beforeend", rendreEntree({ type: "joueur", texte }));
     h.scrollTop = h.scrollHeight;
+    $$("#choix-ia button").forEach((b) => { b.disabled = true; });
     $$("[data-capacite]").forEach((b) => { b.disabled = true; });
   }
   try {
@@ -788,6 +802,7 @@ async function envoyer(texte, actionDirecte = null) {
   } finally {
     enAttente = false;
     $("#envoyer").disabled = false;
+    rendreChoix(); // boutons réactivés (ou remplacés par les nouveaux choix)
     $("#reflexion").classList.add("cachee");
     rendrePanneau();
     if (grandEcran()) $("#action").focus();

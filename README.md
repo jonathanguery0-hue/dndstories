@@ -51,6 +51,8 @@ par session).
 
 ## 🎮 Comment jouer
 
+- Après chaque réponse, le maître du jeu propose **2 ou 3 actions** : clique sur l'une d'elles pour la
+  jouer directement… ou écris toi-même autre chose.
 - Écris ce que fait ton personnage, comme tu le dirais à un maître du jeu autour d'une table :
   *« Je m'approche du comptoir et je demande à l'aubergiste s'il a vu des étrangers. »*
 - Quand l'issue est incertaine, le MJ fait lancer les dés. Les résultats s'affichent dans le récit (🎲).

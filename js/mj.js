@@ -156,8 +156,14 @@ Tu es le maître du jeu (MJ) d'une partie de jeu de rôle de fantasy basée sur 
 TON RÔLE
 - Raconte de façon vivante et immersive : sens, ambiance, PNJ avec leur propre voix et leurs motivations.
 - Le joueur décide de TOUTES les actions et paroles de son personnage. Ne les invente jamais à sa place.
-- Termine chaque réponse en laissant la main au joueur (situation claire, sans lister de choix numérotés \
-sauf s'il est perdu).
+- Termine chaque réponse en laissant la main au joueur (situation claire). Ne liste pas de choix dans le \
+récit lui-même : ils vont dans la ligne CHOIX ci-dessous.
+- TOUTE réponse se termine par une dernière ligne exactement de ce format :
+CHOIX: première action | deuxième action | troisième action
+avec 2 ou 3 actions courtes (8 mots maximum), écrites à la première personne comme si le joueur parlait \
+(« J'interroge l'aubergiste », « Je fouille la cave »), variées (prudente, audacieuse, sociale…) et \
+cohérentes avec la situation et la fiche (en combat : des actions de combat concrètes avec ses armes, sorts \
+ou capacités). Ce ne sont que des suggestions : le joueur peut toujours écrire autre chose.
 - Réponses de 80 à 250 mots en général ; plus courtes pendant les combats.
 - Sois juste mais pas complaisant : les actions ont des conséquences, l'échec est possible et intéressant.
 - Si le joueur tente quelque chose d'impossible ou d'incohérent, explique-le dans le récit.
@@ -401,11 +407,25 @@ export async function jouerTour(partie, texteJoueur, appeler, actionDirecte = nu
   }
   if (!termine) narration.push("(Le maître du jeu marque une pause… Que fais-tu ?)");
 
-  const texteMj = narration.join("\n\n") || "(Le maître du jeu reste silencieux… Reformule ton action.)";
+  const brut = narration.join("\n\n") || "(Le maître du jeu reste silencieux… Reformule ton action.)";
+  const { texte: texteMj, choix } = extraireChoix(brut);
   partie.messages.push({ role: "user", content: messageJoueur }, { role: "assistant", content: texteMj });
   if (texteJoueur) partie.affichage.push({ type: "joueur", texte: texteJoueur });
-  partie.affichage.push(...moteur.evenements, { type: "mj", texte: texteMj });
-  return { narration: texteMj, evenements: moteur.evenements };
+  partie.affichage.push(...moteur.evenements, { type: "mj", texte: texteMj, ...(choix.length ? { choix } : {}) });
+  return { narration: texteMj, choix, evenements: moteur.evenements };
+}
+
+/** Sépare le récit de la ligne « CHOIX: a | b | c » que le maître du jeu ajoute à la fin de sa réponse. */
+export function extraireChoix(texte) {
+  const lignes = String(texte ?? "").split("\n");
+  const index = lignes.findLastIndex((l) => /^\s*[*_>#-]*\s*CHOIX\s*[*_]*\s*:/i.test(l));
+  if (index < 0) return { texte: String(texte ?? "").trim(), choix: [] };
+  const choix = lignes[index].replace(/^[^:]*:/, "").split("|")
+    .map((c) => c.replace(/^[\s*_"«»“”\d.)-]+|[\s*_"«»“”]+$/g, "").trim())
+    .filter((c) => c && c.length <= 120)
+    .slice(0, 3);
+  lignes.splice(index, 1);
+  return { texte: lignes.join("\n").trim(), choix };
 }
 
 /** Résume les plus anciens échanges pour que la conversation ne devienne pas trop longue. */
