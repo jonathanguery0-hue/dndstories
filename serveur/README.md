@@ -1,8 +1,8 @@
-# 🎟️ Le serveur relais (pour jouer sans clé)
+# 🎮 Le serveur du jeu : tes amis jouent sans rien configurer
 
-Ce petit serveur garde **ta** clé OpenAI en sécurité chez Cloudflare. Tes amis n'ont besoin que
-d'un **code d'accès** (ou d'un lien d'invitation) : ils ne voient jamais la clé, et c'est ton
-compte OpenAI qui paie leurs parties.
+Ce petit serveur garde **ta** clé OpenAI en sécurité chez Cloudflare et fait parler l'IA pour tous les
+joueurs. Une fois en place, tu partages simplement le lien du jeu : **aucune clé, aucun code** à
+saisir. C'est ton compte OpenAI qui paie les parties (voir « Protéger ton porte-monnaie »).
 
 Cloudflare Workers est **gratuit** jusqu'à 100 000 requêtes par jour, bien plus qu'il n'en faut.
 
@@ -14,61 +14,67 @@ Cloudflare Workers est **gratuit** jusqu'à 100 000 requêtes par jour, bien plu
 2. Dans le menu de gauche, ouvre **Workers & Pages** (parfois rangé sous *Compute*).
 3. Clique sur **Create** (ou *Create application*), puis **Start with Hello World!** / **Create Worker**.
 4. Donne-lui le nom **`contes-dragons`**, puis clique sur **Deploy**.
-5. Clique sur **Edit code** (ou *Continue to project* puis *Edit code*).
-6. Dans l'éditeur, **efface tout** le code, puis colle **tout** le contenu du fichier
-   [`serveur/worker.js`](worker.js) (sur GitHub : ouvre le fichier, bouton *Copy raw file*).
+5. Clique sur **Edit code**.
+6. Dans l'éditeur, **efface tout**, puis colle **tout** le contenu du fichier
+   [`serveur/worker.js`](worker.js) (sur GitHub : ouvre le fichier, bouton *Copy raw file* en haut à droite).
 7. Clique sur **Deploy** (en haut à droite).
 
-## 2. Ajouter la clé et les codes
+## 2. Ajouter ta clé OpenAI
 
-Dans ton Worker, va dans **Settings → Variables and Secrets**, puis **Add** pour chaque ligne :
+Dans ton Worker : **Settings → Variables and Secrets → Add** :
 
 | Type | Nom | Valeur |
 |---|---|---|
 | **Secret** | `OPENAI_API_KEY` | ta clé OpenAI (`sk-…`) |
-| **Secret** | `CODES_ACCES` | les joueurs et leurs codes, séparés par des virgules (voir ci-dessous) |
-| Text | `MODELE` | `gpt-5-mini` (le modèle utilisé pour tout le monde) |
-| Text | `ORIGINES` | `https://jonathanguery0-hue.github.io` |
 
-Clique sur **Deploy** pour enregistrer.
+Clique sur **Deploy** pour enregistrer. C'est tout ce qui est obligatoire !
 
-**Les codes d'accès** s'écrivent `prénom:code`, par exemple :
+## 3. Brancher le jeu sur ton serveur
 
-```
-jonathan:dragon-rouge-42,lea:lune-bleue-17,karim:forge-ardente-08
-```
+Ton Worker a une adresse du type **`https://contes-dragons.TON-NOM.workers.dev`** (visible sur sa page).
 
-- Choisis des codes **difficiles à deviner** (trois mots et un nombre, par exemple).
-- Pour **retirer** l'accès à quelqu'un, enlève son code de la liste.
-- Pour **ajouter** un ami, ajoute `prénom:code` à la fin.
-- Le prénom apparaît dans les journaux du Worker (*Logs*), pour savoir qui joue.
+- **Le plus simple :** envoie-la-moi et je l'ajoute au jeu.
+- **Ou toi-même :** sur GitHub, ouvre le fichier `js/serveur.js`, clique sur le crayon ✏️, remplace
+  `""` par ton adresse entre guillemets — `export const SERVEUR_URL = "https://contes-dragons.TON-NOM.workers.dev";` —
+  puis **Commit changes**. Le site se met à jour en une minute.
 
-## 3. Me donner l'adresse
+Ensuite, partage simplement : **https://jonathanguery0-hue.github.io/dndstories/**
 
-Ton Worker a une adresse du type **`https://contes-dragons.TON-NOM.workers.dev`** (visible sur sa
-page). Envoie-la-moi : je la mets dans le jeu (fichier `js/serveur.js`), et le jeu demandera alors
-un code au lieu d'une clé.
+## 4. Protéger ton porte-monnaie 💸
 
-## 4. Inviter tes amis
+Le serveur se protège déjà tout seul :
 
-Envoie à chacun **son** lien d'invitation :
+- Il ne répond qu'au **site du jeu** : un autre site ne peut pas l'utiliser.
+- Chaque joueur est **limité** à 60 demandes toutes les 10 minutes (≈ 20 tours de jeu), largement
+  assez pour jouer, mais pas pour vider ton crédit avec un robot.
+- Il **impose le modèle** : personne ne peut choisir un modèle plus cher.
 
-```
-https://jonathanguery0-hue.github.io/dndstories/#code=lune-bleue-17
-```
+Et la meilleure protection, de ton côté :
 
-En l'ouvrant, le code est enregistré automatiquement : il n'y a plus qu'à jouer. (Ils peuvent aussi
-le taper dans ⚙️ Réglages.)
+- Sur **platform.openai.com → Settings → Billing**, mets **un crédit prépayé** (par exemple 10 $) et
+  **désactive la recharge automatique** (*auto recharge*). Quand le crédit est épuisé, l'IA s'arrête
+  simplement : tu ne peux jamais payer plus que ce que tu as mis.
+- Le coût de chaque partie s'affiche dans le jeu (accueil et onglet Journal) pour suivre la consommation.
 
-## 5. Protéger ton porte-monnaie 💸
+## Réglages facultatifs
 
-- Sur **platform.openai.com → Settings → Limits**, fixe une **limite de dépense mensuelle**
-  (par exemple 10 $). Au-delà, l'IA s'arrête simplement de répondre jusqu'au mois suivant.
-- Le serveur **impose le modèle** (`MODELE`) : personne ne peut choisir un modèle plus cher.
-- Un code ne sert qu'à ce jeu : même divulgué, il ne donne pas accès à ta clé. Change-le si besoin.
+À ajouter dans **Settings → Variables and Secrets** seulement si tu en as besoin :
+
+| Nom | Valeur | À quoi ça sert |
+|---|---|---|
+| `MODELE` | ex. `gpt-5-mini` | le modèle utilisé pour tout le monde (par défaut `gpt-5-mini`) |
+| `MODELE_VOIX` | ex. `gpt-4o-mini-tts` | le modèle de la voix IA |
+| `LIMITE` | ex. `40` | demandes max par joueur toutes les 10 minutes (par défaut 60) |
+| `CODES_ACCES` *(secret)* | `lea:lune-bleue-17,karim:forge-08` | **réserver** le jeu à des amis : un code devient obligatoire |
+| `ACCES_LIBRE` | `oui` | avec des codes, garder quand même le jeu ouvert (les codes donnent une limite plus haute) |
+| `ORIGINES` | `https://…` | autres sites autorisés (par défaut : le site GitHub Pages du jeu) |
+
+Avec des codes, tu peux envoyer à chacun un lien qui le connecte directement :
+`https://jonathanguery0-hue.github.io/dndstories/#code=lune-bleue-17`
 
 ## Pour les curieux
 
-- Le serveur ne fait qu'une chose : vérifier le code, puis transmettre la requête à OpenAI avec ta clé.
-- Adresses : `GET /verifier` (teste un code, en-tête `X-Code-Acces`), `POST /v1/chat/completions` (l'IA) et `POST /v1/audio/speech` (la voix IA).
-- Il ne stocke rien : les parties restent dans le navigateur de chaque joueur.
+- Le serveur vérifie d'où vient la demande, applique la limite, puis la transmet à OpenAI avec ta clé.
+- Adresses : `GET /verifier`, `POST /v1/chat/completions` (l'IA) et `POST /v1/audio/speech` (la voix IA).
+- Il ne stocke rien : les parties restent dans le navigateur de chaque joueur. Les journaux du Worker
+  (*Logs*) montrent le nombre de demandes, sans le contenu des parties.

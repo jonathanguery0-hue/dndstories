@@ -52,7 +52,8 @@ export function enregistrerConfig(modifs) {
 }
 
 // Un serveur local (Ollama…) n'a pas besoin de vraie clé.
-export const estConfigure = (cfg) => (cfg.mode === "serveur" ? Boolean(SERVEUR_URL && cfg.code) : Boolean(cfg.cle || cfg.adresse));
+// Avec le serveur du jeu, rien à saisir : le code d'accès n'est utile que si l'organisateur en impose un.
+export const estConfigure = (cfg) => (cfg.mode === "serveur" ? Boolean(SERVEUR_URL) : Boolean(cfg.cle || cfg.adresse));
 
 export function masquer(cle) {
   if (!cle) return "";

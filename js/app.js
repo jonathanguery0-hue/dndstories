@@ -246,7 +246,7 @@ function ouvrirReglages() {
   $("#choix-mode").classList.toggle("cache", !SERVEUR_URL);
   $$('input[name="mode"]').forEach((r) => { r.checked = r.value === CONFIG.mode; });
   $("#code-acces").value = CONFIG.code;
-  $("#etat-code").textContent = "Demande ton code à la personne qui t'a invité.";
+  $("#etat-code").textContent = "Le jeu est prêt : tu n'as rien à saisir. Entre un code seulement si on t'en a donné un.";
   $("#etat-code").classList.remove("succes");
   $("#cle-api").value = "";
   $("#cle-actuelle").textContent = CONFIG.cle
@@ -274,11 +274,12 @@ $("#verifier-code").addEventListener("click", async () => {
   const bouton = $("#verifier-code");
   const code = $("#code-acces").value.trim();
   $("#erreur-reglages").textContent = "";
-  if (!code) { $("#erreur-reglages").textContent = "Entre d'abord ton code."; return; }
   bouton.disabled = true;
   try {
     const { joueur } = await verifierCode({ url: SERVEUR_URL, code });
-    $("#etat-code").textContent = `✅ Code valide — bienvenue, ${joueur} !`;
+    $("#etat-code").textContent = joueur === "anonyme"
+      ? "✅ Serveur du jeu joignable : tout est prêt, bonne aventure !"
+      : `✅ Code valide — bienvenue, ${joueur} !`;
     $("#etat-code").classList.add("succes");
   } catch (err) {
     $("#erreur-reglages").textContent = err.message;

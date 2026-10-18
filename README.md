@@ -23,13 +23,13 @@ Rien à installer : ça marche sur ordinateur, tablette et téléphone.
 
 ---
 
-## 🎟️ Code d'accès ou clé OpenAI
+## 🎮 Jouer sans rien configurer
 
-**Tu as été invité ?** Ouvre simplement le lien d'invitation reçu (il contient ton code), ou tape
-ton code dans **⚙️ Réglages → Code d'accès**. C'est tout !
+Ouvre le lien et joue : **aucune clé, aucun code**. L'IA passe par le serveur du jeu, qui garde la
+clé OpenAI de l'organisateur en sécurité.
 
-**Tu organises ?** Le serveur relais garde ta clé OpenAI et donne un code à chacun de tes amis :
-suis le guide [`serveur/README.md`](serveur/README.md).
+**Tu organises ?** Mets en place le serveur une seule fois (~10 minutes, gratuit) en suivant
+[`serveur/README.md`](serveur/README.md), puis partage le lien du jeu.
 
 <details>
 <summary>Jouer avec ta propre clé OpenAI</summary>
@@ -92,6 +92,7 @@ mensuelle** sur platform.openai.com → *Limits*.
 | Message | Solution |
 |---|---|
 | « Code d'accès refusé » | Vérifie le code dans ⚙️ (bouton *Vérifier*) ou redemande-le à l'organisateur. |
+| « Doucement, aventurier ! Trop de demandes… » | Limite anti-abus du serveur : fais une pause de quelques minutes. |
 | « Le crédit OpenAI de l'organisateur est épuisé » | Préviens l'organisateur. |
 | « La clé API est refusée » | Vérifie la clé dans ⚙️ (copie-colle sans espace). |
 | « Le compte OpenAI n'a plus de crédit » | Ajoute du crédit dans *Billing* sur platform.openai.com. |

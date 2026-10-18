@@ -42,9 +42,10 @@ async function demander(url, entetes, corps) {
 }
 
 function messageErreur(statut, erreur) {
-  if (erreur.code === "code_invalide" || (statut === 401 && erreur.code !== "cle_serveur_refusee")) {
+  if (["code_invalide", "code_requis"].includes(erreur.code) || (statut === 401 && erreur.code !== "cle_serveur_refusee")) {
     return "Voix IA refusée : vérifie ta clé ou ton code d'accès dans les Réglages.";
   }
+  if (erreur.code === "limite_atteinte") return "Voix IA en pause quelques minutes (trop de demandes) : la voix de l'appareil prend le relais.";
   if (statut === 429) return "Voix IA : crédit épuisé ou trop de demandes. La voix de l'appareil prend le relais.";
   return `Voix IA indisponible (${statut}) : ${String(erreur.message ?? "").slice(0, 200)}`;
 }
@@ -69,7 +70,7 @@ export async function syntheseOpenAI({ cle, adresse }, texte, voix) {
 
 /** Synthèse via le serveur relais de l'organisateur (code d'accès). */
 export async function syntheseServeur({ url, code }, texte, voix) {
-  const r = await demander(`${url.replace(/\/+$/, "")}/v1/audio/speech`, { "X-Code-Acces": code },
+  const r = await demander(`${url.replace(/\/+$/, "")}/v1/audio/speech`, code ? { "X-Code-Acces": code } : {},
     { voice: voix, input: String(texte).slice(0, LONGUEUR_MAX) });
   if (r.blob) return r.blob;
   throw new ErreurVoix(messageErreur(r.statut, r.erreur));

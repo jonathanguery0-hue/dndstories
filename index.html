@@ -127,18 +127,18 @@
   <form method="dialog" id="formulaire-reglages">
     <h2>Réglages</h2>
     <div class="choix-mode" id="choix-mode">
-      <label><input type="radio" name="mode" value="serveur"> 🎟️ Code d'accès (fourni par l'organisateur)</label>
+      <label><input type="radio" name="mode" value="serveur"> 🎮 Serveur du jeu (rien à configurer)</label>
       <label><input type="radio" name="mode" value="cle"> 🔑 Ma propre clé OpenAI</label>
     </div>
 
     <div id="section-serveur">
-      <label>Code d'accès
+      <label>Code d'accès <small class="discret">(facultatif)</small>
         <span class="ligne">
           <input type="text" id="code-acces" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="ex. lune-bleue-17">
           <button type="button" class="bouton" id="verifier-code">Vérifier</button>
         </span>
       </label>
-      <p class="aide" id="etat-code">Demande ton code à la personne qui t'a invité.</p>
+      <p class="aide" id="etat-code">Le jeu est prêt : tu n'as rien à saisir. Entre un code seulement si on t'en a donné un.</p>
     </div>
 
     <div id="section-cle">

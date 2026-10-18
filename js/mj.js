@@ -262,7 +262,7 @@ export function clientServeur({ url, code }) {
   const base = url.replace(/\/+$/, "");
   return (messages, outils) => requeteIA(
     `${base}/v1/chat/completions`,
-    { "X-Code-Acces": code },
+    code ? { "X-Code-Acces": code } : {},
     { messages, ...(outils ? { tools: outils } : {}) },
     messageErreurServeur,
   );
@@ -272,7 +272,7 @@ export function clientServeur({ url, code }) {
 export async function verifierCode({ url, code }) {
   let reponse;
   try {
-    reponse = await fetch(`${url.replace(/\/+$/, "")}/verifier`, { headers: { "X-Code-Acces": code } });
+    reponse = await fetch(`${url.replace(/\/+$/, "")}/verifier`, { headers: code ? { "X-Code-Acces": code } : {} });
   } catch {
     throw new ErreurIA("Impossible de joindre le serveur du jeu. Vérifie ta connexion internet.");
   }
@@ -284,9 +284,13 @@ export async function verifierCode({ url, code }) {
 
 export function messageErreurServeur(statut, donnees) {
   const err = donnees?.error ?? {};
+  if (err.code === "code_requis") {
+    return "Ce jeu est réservé : entre le code d'accès qu'on t'a donné dans les Réglages (⚙️).";
+  }
   if (err.code === "code_invalide" || statut === 401) {
     return "Code d'accès refusé. Vérifie-le dans les Réglages (⚙️) ou redemande-le à l'organisateur.";
   }
+  if (err.code === "limite_atteinte") return err.message;
   if (statut === 429) {
     if (err.code === "insufficient_quota" || /quota/i.test(err.message ?? "")) {
       return "Le crédit OpenAI de l'organisateur est épuisé : préviens-le pour qu'il en rajoute.";

@@ -59,7 +59,7 @@ test("relais : refuse les mauvais codes, les autres sites et les requêtes inval
 
 test("relais : vérification du code et clé du serveur refusée", async () => {
   const ok = await worker.fetch(requete("/verifier", { methode: "GET", code: "dragon-rouge-42" }), ENV);
-  assert.deepEqual(await ok.json(), { ok: true, joueur: "jonathan", modele: "gpt-modele-impose" });
+  assert.deepEqual(await ok.json(), { ok: true, joueur: "jonathan", acces_libre: false, modele: "gpt-modele-impose" });
   globalThis.fetch = async () => new Response('{"error":{"message":"bad key"}}', { status: 401 });
   const r = await worker.fetch(requete("/v1/chat/completions", { code: "dragon-rouge-42", corps: { messages: [{ role: "user", content: "x" }] } }), ENV);
   assert.equal(r.status, 502);
@@ -80,4 +80,30 @@ test("le jeu passe par le relais avec le code d'accès", async () => {
   const appeler = clientServeur({ url, code: "lune-bleue-17" });
   assert.equal((await appeler([{ role: "user", content: "Bonjour" }])).content, "Il était une fois…");
   await assert.rejects(clientServeur({ url, code: "x" })([{ role: "user", content: "Bonjour" }]), /Code d'accès refusé/);
+});
+
+test("relais ouvert : sans code depuis le site du jeu, refusé ailleurs, limité en cas d'abus", async () => {
+  const ouvert = { OPENAI_API_KEY: "sk-secrete", LIMITE: "3" }; // ni codes ni ORIGINES : site GitHub Pages par défaut
+  globalThis.fetch = async () => new Response(JSON.stringify({ choices: [{ message: { content: "ok" } }] }), { status: 200 });
+  const corps = { messages: [{ role: "user", content: "x" }] };
+  const depuis = (origine, ip) => {
+    const r = requete("/v1/chat/completions", { corps, origine });
+    r.headers.set("CF-Connecting-IP", ip);
+    return r;
+  };
+  assert.equal((await worker.fetch(requete("/verifier", { methode: "GET" }), ouvert)).status, 200);
+  for (let i = 0; i < 3; i++) assert.equal((await worker.fetch(depuis(ORIGINE, "1.1.1.1"), ouvert)).status, 200);
+  const trop = await worker.fetch(depuis(ORIGINE, "1.1.1.1"), ouvert);
+  assert.equal(trop.status, 429);
+  assert.equal((await trop.json()).error.code, "limite_atteinte");
+  assert.equal((await worker.fetch(depuis(ORIGINE, "2.2.2.2"), ouvert)).status, 200); // autre joueur : pas bloqué
+  assert.equal((await worker.fetch(depuis("https://pirate.example", "3.3.3.3"), ouvert)).status, 403);
+  assert.equal((await worker.fetch(depuis("", "4.4.4.4"), ouvert)).status, 401); // pas un navigateur sur le site
+  // Avec des codes : obligatoires, sauf ACCES_LIBRE=oui.
+  const prive = { ...ouvert, CODES_ACCES: "lea:lune-bleue-17" };
+  const r = await worker.fetch(depuis(ORIGINE, "5.5.5.5"), prive);
+  assert.equal(r.status, 401);
+  assert.equal((await r.json()).error.code, "code_requis");
+  assert.equal((await worker.fetch(depuis(ORIGINE, "6.6.6.6"), { ...prive, ACCES_LIBRE: "oui" })).status, 200);
+  globalThis.fetch = fetchOrigine;
 });

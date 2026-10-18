@@ -1,14 +1,20 @@
 // Relais Contes & Dragons — Cloudflare Worker
 //
-// Garde la clé OpenAI de l'organisateur côté serveur : les joueurs n'ont besoin que d'un code d'accès.
+// Garde la clé OpenAI de l'organisateur côté serveur : les joueurs n'ont rien à saisir.
 // À copier tel quel dans l'éditeur de Cloudflare (voir serveur/README.md).
 //
+// Accès : ouvert à tous les joueurs qui viennent du site du jeu (aucune clé, aucun code), avec une
+// limite de demandes par joueur. Si CODES_ACCES est défini, un code devient obligatoire (sauf si
+// ACCES_LIBRE vaut « oui » : le code est alors facultatif et donne simplement une limite plus haute).
+//
 // Variables à définir dans Cloudflare (Settings → Variables and Secrets) :
-//   OPENAI_API_KEY  (secret)  la clé OpenAI, « sk-… »
-//   CODES_ACCES     (secret)  les joueurs et leurs codes : « jonathan:dragon-rouge-42,lea:lune-bleue-17 »
-//   MODELE          (texte)   le modèle utilisé pour tout le monde, ex. « gpt-5-mini » (facultatif)
-//   MODELE_VOIX     (texte)   le modèle de voix IA, ex. « gpt-4o-mini-tts » (facultatif)
-//   ORIGINES        (texte)   adresses autorisées, ex. « https://jonathanguery0-hue.github.io » (facultatif)
+//   OPENAI_API_KEY  (secret)  la clé OpenAI, « sk-… »                                  — OBLIGATOIRE
+//   MODELE          (texte)   le modèle utilisé pour tout le monde, ex. « gpt-5-mini »  — facultatif
+//   MODELE_VOIX     (texte)   le modèle de voix IA, ex. « gpt-4o-mini-tts »             — facultatif
+//   ORIGINES        (texte)   sites autorisés (par défaut : le site GitHub Pages du jeu) — facultatif
+//   LIMITE          (texte)   demandes max par joueur toutes les 10 minutes (défaut 60)  — facultatif
+//   CODES_ACCES     (secret)  « prenom:code,prenom:code » pour réserver le jeu à des amis — facultatif
+//   ACCES_LIBRE     (texte)   « oui » pour garder le jeu ouvert même avec des codes      — facultatif
 
 const OPENAI_URL = "https://api.openai.com/v1/chat/completions";
 const OPENAI_VOIX_URL = "https://api.openai.com/v1/audio/speech";
@@ -20,16 +26,37 @@ const CONSIGNES_VOIX = "Tu es le narrateur d'un jeu de rôle de fantasy. Parle e
   + "étranger, sur un ton de conteur : posé, chaleureux et immersif, avec du suspense dans les moments tendus. "
   + "Fais vivre les dialogues des personnages sans exagérer.";
 const TAILLE_MAX = 400_000; // caractères par requête : une partie normale en utilise bien moins
+const ORIGINE_PAR_DEFAUT = "https://jonathanguery0-hue.github.io";
+const FENETRE = 10 * 60 * 1000; // la limite de demandes se compte sur 10 minutes
+const LIMITE_DEFAUT = 60;       // ≈ 20 tours de jeu en 10 minutes : largement assez pour jouer normalement
+
+// Compteurs de demandes par joueur (en mémoire : une protection contre les abus, pas une comptabilité).
+const compteurs = new Map();
+
+/** Vrai si le joueur peut faire une demande de plus ; compte la demande. */
+function dansLaLimite(cle, limite, maintenant = Date.now()) {
+  let c = compteurs.get(cle);
+  if (!c || maintenant - c.debut > FENETRE) {
+    c = { debut: maintenant, n: 0 };
+    compteurs.set(cle, c);
+  }
+  c.n += 1;
+  if (compteurs.size > 5000) {
+    for (const [k, v] of compteurs) if (maintenant - v.debut > FENETRE) compteurs.delete(k);
+  }
+  return c.n <= limite;
+}
 
 export default {
   async fetch(request, env) {
     const origine = request.headers.get("Origin") ?? "";
-    const autorisees = listeOrigines(env.ORIGINES);
-    const origineOk = !origine || !autorisees.length || autorisees.includes(origine);
+    const autorisees = env.ORIGINES ? listeOrigines(env.ORIGINES) : [ORIGINE_PAR_DEFAUT];
+    const origineOk = !origine || autorisees.includes(origine);
     const cors = {
       "Access-Control-Allow-Origin": origineOk && origine ? origine : "*",
       "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
       "Access-Control-Allow-Headers": "Content-Type, X-Code-Acces",
+      "Access-Control-Expose-Headers": "X-Acces",
       "Access-Control-Max-Age": "86400",
       Vary: "Origin",
     };
@@ -44,15 +71,33 @@ export default {
     const chemin = new URL(request.url).pathname.replace(/\/+$/, "") || "/";
     if (chemin === "/") return json(200, { service: "Contes & Dragons", ok: true });
 
-    const joueur = trouverJoueur(request.headers.get("X-Code-Acces"), env.CODES_ACCES);
+    const code = (request.headers.get("X-Code-Acces") ?? "").trim();
+    const ami = trouverJoueur(code, env.CODES_ACCES);
+    const accesLibre = !env.CODES_ACCES || env.ACCES_LIBRE === "oui";
+    // Sans code, il faut venir du site du jeu (un navigateur envoie toujours l'origine de la page).
+    const joueur = ami ?? (accesLibre && origine && !code ? "anonyme" : null);
+    const refus = () => (code
+      ? erreur(401, "Code d'accès invalide.", "code_invalide")
+      : erreur(401, "Ce jeu demande un code d'accès.", "code_requis"));
 
     if (chemin === "/verifier" && request.method === "GET") {
-      if (!joueur) return erreur(401, "Code d'accès invalide.", "code_invalide");
-      return json(200, { ok: true, joueur, modele: env.MODELE || MODELE_DEFAUT });
+      if (!joueur) return refus();
+      return json(200, { ok: true, joueur, acces_libre: accesLibre, modele: env.MODELE || MODELE_DEFAUT });
+    }
+
+    if (joueur && (chemin === "/v1/chat/completions" || chemin === "/v1/audio/speech")) {
+      const limite = Number(env.LIMITE) || LIMITE_DEFAUT;
+      const ip = request.headers.get("CF-Connecting-IP") ?? "inconnue";
+      const cle = ami ? `ami:${ami}` : `ip:${ip}`;
+      if (!dansLaLimite(cle, ami ? limite * 2 : limite)) {
+        console.log(`limite atteinte ${cle}`);
+        return erreur(429, "Doucement, aventurier ! Trop de demandes en peu de temps : fais une pause de "
+          + "quelques minutes, puis reprends ta partie.", "limite_atteinte");
+      }
     }
 
     if (chemin === "/v1/audio/speech" && request.method === "POST") {
-      if (!joueur) return erreur(401, "Code d'accès invalide.", "code_invalide");
+      if (!joueur) return refus();
       if (!env.OPENAI_API_KEY) return erreur(500, "Le serveur n'a pas de clé OpenAI configurée.", "serveur_sans_cle");
       let corps;
       try {
@@ -87,7 +132,7 @@ export default {
     }
 
     if (chemin !== "/v1/chat/completions" || request.method !== "POST") return erreur(404, "Adresse inconnue.");
-    if (!joueur) return erreur(401, "Code d'accès invalide.", "code_invalide");
+    if (!joueur) return refus();
     if (!env.OPENAI_API_KEY) return erreur(500, "Le serveur n'a pas de clé OpenAI configurée.", "serveur_sans_cle");
 
     const texte = await request.text();
