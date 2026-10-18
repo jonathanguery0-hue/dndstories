@@ -432,6 +432,8 @@ export const CLASSES = {
   },
   "Rôdeur": {
     "de_vie": 10,
+    "lanceur": "SAG",
+    "demi_lanceur": true,
     "sauvegardes": [
       "FOR",
       "DEX"
@@ -761,7 +763,8 @@ export const SORTS = {
   "Soins": {
     "niveau": 1,
     "classes": [
-      "Clerc"
+      "Clerc",
+      "Rôdeur"
     ],
     "type": "soin",
     "soin": "1d8",
@@ -844,6 +847,154 @@ export const SORTS = {
     "soin": "2d8",
     "par_niveau": "1d8",
     "description": "Jusqu'à 6 créatures récupèrent des PV (10 minutes d'incantation)."
+  },
+  "Marque du chasseur": {
+    "niveau": 1,
+    "classes": ["Rôdeur"],
+    "type": "special",
+    "description": "Action bonus : marque une cible ; +1d6 dégâts à chaque coup d'arme contre elle (concentration, 1 h)."
+  },
+  "Grêle d'épines": {
+    "niveau": 1,
+    "classes": ["Rôdeur"],
+    "type": "sauvegarde",
+    "sauvegarde": "DEX",
+    "degats": "1d10",
+    "par_niveau": "1d10",
+    "degats_type": "perforant",
+    "moitie": false,
+    "description": "Après un tir réussi, une pluie d'épines frappe la cible et ses voisins (1,5 m)."
+  },
+  "Passage sans trace": {
+    "niveau": 2,
+    "classes": ["Rôdeur"],
+    "type": "special",
+    "description": "+10 aux tests de Discrétion du groupe, aucune trace laissée (concentration, 1 h)."
+  },
+  "Boule de feu": {
+    "niveau": 3,
+    "classes": ["Magicien"],
+    "type": "sauvegarde",
+    "sauvegarde": "DEX",
+    "degats": "8d6",
+    "par_niveau": "1d6",
+    "degats_type": "feu",
+    "moitie": true,
+    "description": "Explosion de flammes de 6 m de rayon à 45 m (toutes les créatures de la zone)."
+  },
+  "Éclair": {
+    "niveau": 3,
+    "classes": ["Magicien"],
+    "type": "sauvegarde",
+    "sauvegarde": "DEX",
+    "degats": "8d6",
+    "par_niveau": "1d6",
+    "degats_type": "foudre",
+    "moitie": true,
+    "description": "Ligne de foudre de 30 m de long (toutes les créatures sur la ligne)."
+  },
+  "Contresort": {
+    "niveau": 3,
+    "classes": ["Magicien"],
+    "type": "special",
+    "description": "Réaction : interrompt un sort lancé à 18 m (automatique jusqu'au niveau 3, sinon test)."
+  },
+  "Hâte": {
+    "niveau": 3,
+    "classes": ["Magicien"],
+    "type": "special",
+    "description": "Une créature : vitesse doublée, +2 CA, avantage aux sauvegardes de DEX, une action de plus (concentration, 1 min)."
+  },
+  "Esprits gardiens": {
+    "niveau": 3,
+    "classes": ["Clerc"],
+    "type": "sauvegarde",
+    "sauvegarde": "SAG",
+    "degats": "3d8",
+    "par_niveau": "1d8",
+    "degats_type": "radiant",
+    "moitie": true,
+    "description": "Des esprits entourent le lanceur (4,5 m) : les ennemis qui y entrent ou y commencent leur tour subissent les dégâts et sont ralentis (concentration, 10 min)."
+  },
+  "Mot de guérison de groupe": {
+    "niveau": 3,
+    "classes": ["Clerc"],
+    "type": "soin",
+    "soin": "1d4",
+    "par_niveau": "1d4",
+    "description": "Action bonus : jusqu'à 6 créatures à 18 m récupèrent des PV."
+  },
+  "Revigorer": {
+    "niveau": 3,
+    "classes": ["Clerc"],
+    "type": "special",
+    "description": "Ramène à la vie (1 PV) une créature morte depuis moins d'une minute (300 po de diamants)."
+  },
+  "Dissipation de la magie": {
+    "niveau": 3,
+    "classes": ["Magicien", "Clerc"],
+    "type": "special",
+    "description": "Met fin aux sorts sur une cible (automatique jusqu'au niveau 3, sinon test)."
+  }
+};
+
+// Emplacements des demi-lanceurs (rôdeur) : rien au niveau 1.
+export const EMPLACEMENTS_DEMI = {
+  "1": {},
+  "2": { "1": 2 },
+  "3": { "1": 3 },
+  "4": { "1": 3 },
+  "5": { "1": 4, "2": 2 },
+  "6": { "1": 4, "2": 2 },
+  "7": { "1": 4, "2": 3 },
+  "8": { "1": 4, "2": 3 },
+  "9": { "1": 4, "2": 3, "3": 2 },
+  "10": { "1": 4, "2": 3, "3": 2 }
+};
+
+// Capacités gagnées en montant de niveau (niveaux 2 à 5). "amelioration" : +2 à la caractéristique principale.
+export const CAPACITES_NIVEAU = {
+  "Guerrier": {
+    "2": [{ "nom": "Fougue", "description": "Une action supplémentaire pendant ce tour.", "utilisations_max": 1, "recharge": "court" }],
+    "3": [{ "nom": "Champion : critique amélioré", "description": "Coup critique sur 19 ou 20 aux attaques d'arme (inclus).", "effet": "critique_ameliore" }],
+    "4": ["amelioration"],
+    "5": [{ "nom": "Attaque supplémentaire", "description": "Deux attaques quand il choisit l'action Attaquer (un appel d'attaque par coup)." }]
+  },
+  "Barbare": {
+    "2": [
+      { "nom": "Attaque téméraire", "description": "Peut attaquer avec l'avantage (FOR) ; les ennemis ont alors l'avantage contre lui jusqu'à son prochain tour." },
+      { "nom": "Sens du danger", "description": "Avantage aux sauvegardes de DEX contre les effets qu'il voit (pièges, sorts)." }
+    ],
+    "3": [{ "nom": "Berserker : frénésie", "description": "En rage, peut faire une attaque d'arme en action bonus à chaque tour (1 niveau d'épuisement à la fin)." }],
+    "4": ["amelioration"],
+    "5": [
+      { "nom": "Attaque supplémentaire", "description": "Deux attaques quand il choisit l'action Attaquer (un appel d'attaque par coup)." },
+      { "nom": "Déplacement rapide", "description": "+3 m de vitesse sans armure lourde (inclus)." }
+    ]
+  },
+  "Roublard": {
+    "2": [{ "nom": "Ruse", "description": "Action bonus : Foncer, Se désengager ou Se cacher." }],
+    "3": [{ "nom": "Voleur : mains lestes", "description": "Action bonus : utiliser un objet, crocheter, désamorcer ou faire les poches." }],
+    "4": ["amelioration"],
+    "5": [{ "nom": "Esquive instinctive", "description": "Réaction : divise par deux les dégâts d'une attaque qu'il voit venir." }]
+  },
+  "Rôdeur": {
+    "2": [
+      { "nom": "Style de combat : Archerie", "description": "+2 aux attaques avec une arme à distance (inclus).", "effet": "archerie" },
+      { "nom": "Sorts de rôdeur", "description": "Lance des sorts de rôdeur (SAG)." }
+    ],
+    "3": [{ "nom": "Chasseur : tueur de colosses", "description": "Une fois par tour, +1d8 dégâts contre une créature déjà blessée." }],
+    "4": ["amelioration"],
+    "5": [{ "nom": "Attaque supplémentaire", "description": "Deux attaques quand il choisit l'action Attaquer (un appel d'attaque par coup)." }]
+  },
+  "Clerc": {
+    "2": [{ "nom": "Conduit divin", "description": "Renvoi des morts-vivants (sauvegarde de SAG ou ils fuient) ou Préservation de la vie (répartit 5 × niveau PV de soins).", "utilisations_max": 1, "recharge": "court" }],
+    "4": ["amelioration"],
+    "5": [{ "nom": "Destruction des morts-vivants", "description": "Le Renvoi détruit les morts-vivants de FP 1/2 ou moins." }]
+  },
+  "Magicien": {
+    "2": [{ "nom": "École d'évocation : sculpter les sorts", "description": "Ses sorts d'évocation épargnent des alliés pris dans la zone." }],
+    "4": ["amelioration"]
   }
 };
 

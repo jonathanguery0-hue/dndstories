@@ -14,7 +14,7 @@ export function niveauPourXp(xp) {
   return niveau;
 }
 
-export function creerPersonnage({ nom, race, classe, caracs, competences, historique = "", apparence = "" }) {
+export function creerPersonnage({ nom, race, classe, caracs, competences, historique = "", apparence = "", niveau = 1 }) {
   nom = String(nom ?? "").trim();
   if (!nom) throw new Error("Le personnage doit avoir un nom.");
   if (!srd.RACES[race]) throw new Error(`Race inconnue : ${race}`);
@@ -68,22 +68,42 @@ export function creerPersonnage({ nom, race, classe, caracs, competences, histor
     conditions: [],
     mort: { succes: 0, echecs: 0, stable: false, mort: false },
     // Choix de création, pour pouvoir rejouer le même héros depuis le début.
-    creation: { nom, race, classe, caracs: { ...caracs }, competences: competences.filter((c) => k.competences.includes(c)), historique, apparence },
+    creation: { nom, race, classe, caracs: { ...caracs }, competences: competences.filter((c) => k.competences.includes(c)), historique, apparence, niveau: 1 },
   };
   perso.pv_max = Math.max(k.de_vie + mod(finales.CON) + (r.pv_par_niveau ?? 0), 1);
   perso.pv = perso.pv_max;
   majEmplacements(perso);
+  commencerAuNiveau(perso, niveau);
   return perso;
 }
 
+export const NIVEAUX_DE_DEPART = [1, 3, 5];
+
+/** Héros expérimenté : monte directement au niveau choisi, frais et dispos, avec un peu d'équipement en plus. */
+function commencerAuNiveau(perso, niveau) {
+  niveau = Number(niveau) || 1;
+  if (niveau === 1) return;
+  if (!NIVEAUX_DE_DEPART.includes(niveau)) throw new Error(`Niveau de départ invalide : ${niveau}`);
+  perso.xp = srd.PALIERS_XP[niveau];
+  gagnerNiveau(perso);
+  perso.pv = perso.pv_max;
+  for (const cap of perso.capacites) if (cap.utilisations_max != null) cap.utilisations = cap.utilisations_max;
+  for (const e of Object.values(perso.emplacements)) e.restants = e.max;
+  perso.or += niveau === 5 ? 150 : 50;
+  perso.inventaire.push({ nom: "Potion de soins", quantite: niveau === 5 ? 2 : 1 });
+  perso.creation.niveau = niveau;
+}
+
 function majEmplacements(perso) {
-  if (!srd.CLASSES[perso.classe].lanceur) {
+  const k = srd.CLASSES[perso.classe];
+  if (!k.lanceur) {
     perso.emplacements = {};
     return;
   }
   const anciens = perso.emplacements ?? {};
   const nouveaux = {};
-  for (const [niv, nb] of Object.entries(srd.EMPLACEMENTS[perso.niveau])) {
+  const table = k.demi_lanceur ? srd.EMPLACEMENTS_DEMI : srd.EMPLACEMENTS;
+  for (const [niv, nb] of Object.entries(table[perso.niveau] ?? {})) {
     const a = anciens[niv] ?? { max: 0, restants: 0 };
     nouveaux[niv] = { max: nb, restants: Math.max(nb - (a.max - a.restants), 0) };
   }
@@ -145,7 +165,11 @@ export function caracArme(perso, arme) {
   return arme.carac;
 }
 
-export const bonusAttaqueArme = (perso, arme) => mod(perso.caracs[caracArme(perso, arme)]) + maitrise(perso.niveau);
+export const bonusAttaqueArme = (perso, arme) => mod(perso.caracs[caracArme(perso, arme)]) + maitrise(perso.niveau)
+  + (arme.distance && perso.capacites.some((c) => c.effet === "archerie") ? 2 : 0);
+
+/** Résultat minimal du d20 pour un coup critique (19 pour le champion). */
+export const seuilCritique = (perso) => (perso.capacites.some((c) => c.effet === "critique_ameliore") ? 19 : 20);
 
 export function bonusDegatsArme(perso, arme) {
   if (arme.degats === "1") return mod(perso.caracs.FOR);
@@ -169,9 +193,53 @@ export function gagnerNiveau(perso) {
     for (const cap of perso.capacites) {
       if (cap.nom === "Rage") cap.utilisations_max = perso.niveau < 3 ? 2 : perso.niveau < 6 ? 3 : 4;
     }
+    for (const cap of srd.CAPACITES_NIVEAU[perso.classe]?.[perso.niveau] ?? []) {
+      if (cap === "amelioration") ameliorerCaracteristique(perso);
+      else if (!perso.capacites.some((c) => c.nom === cap.nom)) {
+        perso.capacites.push({ ...cap, utilisations: cap.utilisations_max ?? null });
+        if (cap.nom === "Déplacement rapide") perso.vitesse += 3;
+      }
+    }
     gagnes.push(perso.niveau);
   }
   return gagnes;
+}
+
+/**
+ * Parties créées avant l'ajout des capacités de niveau : ajoute celles qui manquent (sans refaire
+ * l'amélioration de caractéristique) et les emplacements du rôdeur. Renvoie vrai si la fiche a changé.
+ */
+export function mettreAJourPersonnage(perso) {
+  const avant = JSON.stringify([perso.capacites, perso.emplacements]);
+  for (let n = 2; n <= perso.niveau; n++) {
+    for (const cap of srd.CAPACITES_NIVEAU[perso.classe]?.[n] ?? []) {
+      if (cap !== "amelioration" && !perso.capacites.some((c) => c.nom === cap.nom)) {
+        perso.capacites.push({ ...cap, utilisations: cap.utilisations_max ?? null });
+        if (cap.nom === "Déplacement rapide") perso.vitesse += 3;
+      }
+    }
+  }
+  majEmplacements(perso);
+  return JSON.stringify([perso.capacites, perso.emplacements]) !== avant;
+}
+
+/** Amélioration de caractéristique (niveau 4) : +2 à la caractéristique principale de la classe, 20 maximum. */
+function ameliorerCaracteristique(perso) {
+  let points = 2;
+  for (const c of srd.CLASSES[perso.classe].conseil) {
+    const gain = Math.min(points, 20 - perso.caracs[c]);
+    if (gain <= 0) continue;
+    const avant = mod(perso.caracs[c]);
+    perso.caracs[c] += gain;
+    points -= gain;
+    if (c === "CON") {
+      const bonusPv = (mod(perso.caracs.CON) - avant) * perso.niveau;
+      perso.pv_max += bonusPv;
+      perso.pv += bonusPv;
+    }
+    perso.traits.push(`Amélioration de caractéristique : ${c} +${gain}.`);
+    if (!points) break;
+  }
 }
 
 export const enRage = (perso) => perso.conditions.some((c) => /\brage\b/i.test(c));

@@ -10,7 +10,7 @@ import { monstreSRD } from "./regles.js";
 import { DIRECTIONS, ETAGES_PAR_SECTION, genererSection, sectionDeLEtage } from "./donjon.js";
 import {
   bonusAttaqueArme, bonusAttaqueSort, bonusCompetence, bonusDegatsArme, bonusSauvegarde, ca, ddSort,
-  enRage, gagnerNiveau, mod, resistances, signe, sortsConnus,
+  enRage, gagnerNiveau, mod, resistances, seuilCritique, signe, sortsConnus,
 } from "./personnage.js";
 
 /** Action refusée par les règles ; le message est renvoyé à l'IA pour qu'elle corrige. */
@@ -232,9 +232,12 @@ export class Moteur {
   gagnerXp(montant) {
     const p = this.perso;
     p.xp += montant;
+    const avant = new Set(p.capacites.map((c) => c.nom));
     const niveaux = gagnerNiveau(p);
+    const nouvelles = p.capacites.filter((c) => !avant.has(c.nom)).map((c) => c.nom);
     for (const n of niveaux) this.evt(`🎉 ${p.nom} passe au niveau ${n} ! (PV max ${p.pv_max})`, "systeme");
-    return { xp_total: p.xp, nouveaux_niveaux: niveaux };
+    if (nouvelles.length) this.evt(`✨ Nouvelles capacités : ${nouvelles.join(", ")}`, "systeme");
+    return { xp_total: p.xp, nouveaux_niveaux: niveaux, nouvelles_capacites: nouvelles };
   }
 
   verifierConscient() {
@@ -372,7 +375,7 @@ export class Moteur {
     const r = this.d20Joueur(avantage, desavantage,
       { libelle: `Attaque (${a.nom}) contre ${e.id}`, bonus, seuil: e.ca, nomSeuil: "CA", attaque: true });
     const total = r.resultat + bonus;
-    const critique = r.resultat === 20;
+    const critique = r.resultat >= seuilCritique(p);
     const touche = critique || (r.resultat !== 1 && total >= e.ca);
     this.noterIssue(touche);
     let txt = `Attaque (${a.nom}) contre ${e.id} : ${Moteur.desTxt(r)} ${signe(bonus)} = ${total} vs CA ${e.ca}`;

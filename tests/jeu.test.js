@@ -4,7 +4,7 @@ import { beforeEach, test } from "node:test";
 import * as des from "../js/des.js";
 import * as mj from "../js/mj.js";
 import { Moteur, nouvellePartie } from "../js/moteur.js";
-import { ca, creerPersonnage, gagnerNiveau, mod, vueFiche } from "../js/personnage.js";
+import { ca, creerPersonnage, gagnerNiveau, mettreAJourPersonnage, mod, vueFiche } from "../js/personnage.js";
 import * as stockage from "../js/stockage.js";
 
 const CARACS = { FOR: 15, DEX: 14, CON: 13, INT: 8, SAG: 12, CHA: 10 };
@@ -684,4 +684,79 @@ test("la fiche garde les choix de création pour rejouer après une mort", () =>
   assert.equal(bis.nom, p.nom);
   assert.equal(bis.pv_max, p.pv_max);
   assert.equal(bis.niveau, 1);
+});
+
+// ------------------------------------------------------------------ niveau de départ
+
+const rodeur = (niveau) => creerPersonnage({
+  nom: "Sylas", race: "Humain", classe: "Rôdeur", caracs: { FOR: 12, DEX: 15, CON: 13, INT: 8, SAG: 14, CHA: 10 },
+  competences: ["Survie", "Perception", "Discrétion"], niveau,
+});
+
+test("héros de niveau 5 : PV, capacités, amélioration et équipement en plus", () => {
+  const p = creerPersonnage({
+    nom: "Brann", race: "Nain des collines", classe: "Guerrier", caracs: CARACS,
+    competences: ["Athlétisme", "Perception"], niveau: 5,
+  });
+  const base = guerrier();
+  assert.equal(p.niveau, 5);
+  assert.equal(p.xp, 6500);
+  assert.equal(p.pv, p.pv_max);
+  assert.ok(p.pv_max > base.pv_max * 3);
+  for (const nom of ["Fougue", "Champion : critique amélioré", "Attaque supplémentaire"]) {
+    assert.ok(p.capacites.some((c) => c.nom === nom), nom);
+  }
+  assert.equal(p.caracs.FOR, base.caracs.FOR + 2); // amélioration du niveau 4
+  assert.equal(p.capacites.find((c) => c.nom === "Fougue").utilisations, 1);
+  assert.equal(p.inventaire.find((o) => o.nom === "Potion de soins").quantite, 2);
+  assert.equal(p.creation.niveau, 5);
+  assert.equal(creerPersonnage(p.creation).niveau, 5); // rejouer garde le niveau
+  assert.throws(() => creerPersonnage({ ...p.creation, niveau: 4 }), /Niveau de départ invalide/);
+});
+
+test("le magicien de niveau 5 lance Boule de feu sur plusieurs ennemis", () => {
+  const p = creerPersonnage({
+    nom: "Ilsa", race: "Haut-elfe", classe: "Magicien",
+    caracs: { FOR: 8, DEX: 14, CON: 13, INT: 15, SAG: 12, CHA: 10 }, competences: ["Arcanes", "Histoire"], niveau: 5,
+  });
+  assert.equal(p.emplacements[3].max, 2);
+  const partie = nouvellePartie(p, "donjon");
+  const m = new Moteur(partie);
+  m.commencer_combat({ ennemis: [{ nom: "Gobelin", nombre: 3 }] });
+  const r = m.lancer_sort({ sort: "Boule de feu", cibles: ["Gobelin 1", "Gobelin 2", "Gobelin 3"] });
+  assert.equal(r.resultats.length, 3);
+  assert.equal(partie.personnage.emplacements[3].restants, 1);
+});
+
+test("rôdeur : demi-lanceur de sorts dès le niveau 2, archerie", () => {
+  const p1 = rodeur(1);
+  assert.deepEqual(p1.emplacements, {});
+  const p5 = rodeur(5);
+  assert.deepEqual(Object.fromEntries(Object.entries(p5.emplacements).map(([n, e]) => [n, e.max])), { 1: 4, 2: 2 });
+  const m = new Moteur(nouvellePartie(p5, "donjon"));
+  assert.ok(m.lancer_sort({ sort: "Marque du chasseur" }));
+  const arc = p5.armes.find((a) => a.distance);
+  const sans = { ...p5, capacites: [] };
+  assert.equal(vueFiche(p5).attaques.find((a) => a.nom === arc.nom).bonus - vueFiche(sans).attaques.find((a) => a.nom === arc.nom).bonus, 2);
+});
+
+test("le champion fait un critique sur 19 ; une montée de niveau annonce les nouvelles capacités", async () => {
+  const p = guerrier();
+  const partie = nouvellePartie(p, "brumesaule");
+  const m = new Moteur(partie);
+  const r = m.gagnerXp(900);
+  assert.deepEqual(r.nouveaux_niveaux, [2, 3]);
+  assert.deepEqual(r.nouvelles_capacites, ["Fougue", "Champion : critique amélioré"]);
+  m.commencer_combat({ ennemis: [{ nom: "Ogre" }] });
+  m.interactif = true;
+  const a = await m.executerAvecJets("attaque_joueur", { arme: "Épée longue", cible: "Ogre" }, async (jet) => Array(jet.nombre).fill(19));
+  assert.equal(a.critique, true);
+});
+
+test("une ancienne fiche de niveau 3 récupère ses capacités de classe", () => {
+  const p = guerrier();
+  p.niveau = 3;
+  assert.equal(mettreAJourPersonnage(p), true);
+  assert.ok(p.capacites.some((c) => c.nom === "Fougue"));
+  assert.equal(mettreAJourPersonnage(p), false);
 });

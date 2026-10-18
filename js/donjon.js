@@ -160,7 +160,8 @@ function composerBoss(theme, niveau, statsDe) {
   const [, , difficile, mortel] = SEUILS[Math.min(niveau, 10)];
   const pool = monstresUtilisables(theme);
   // Le boss (renforcé : PV ×1,6) est choisi pour que le combat reste entre « difficile » et « mortel ».
-  const candidats = pool.filter((n) => XP[n] <= (difficile + mortel) / 2 * 0.75);
+  // Plus de marge au niveau 1-2, où un seul coup peut coucher le héros.
+  const candidats = pool.filter((n) => XP[n] <= (difficile + mortel) / 2 * (niveau <= 2 ? 0.75 : 0.95));
   const modele = candidats.length ? candidats.reduce((a, b) => (XP[a] >= XP[b] ? a : b)) : pool[0];
   const base = statsDe(modele);
   const nom = piocher(theme.boss);

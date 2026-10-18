@@ -59,7 +59,7 @@ Adapte librement selon les choix du joueur.`,
   donjon: {
     titre: "Le Gouffre aux Mille Marches",
     accroche: "Un donjon sans fond, salle après salle, étage après étage. Combats, butin et un boss tous les cinq étages : jusqu'où descendras-tu ?",
-    niveau: "Tous niveaux · combats en série",
+    niveau: "Niveau 1, 3 ou 5 · combats en série",
     intro: "Commence la partie : le personnage se tient au bord du Gouffre aux Mille Marches, au fond d'une ruine envahie de lierre. Décris brièvement l'escalier qui s'enfonce dans le noir, puis appelle explorer (sans direction) et mets en scène le palier du premier étage et ses sorties.",
     notes_mj: `MODE DONJON (« dungeon crawler ») : le plan du donjon est GÉNÉRÉ PAR LE MOTEUR, 5 étages à la fois.
 Chaque étage est un ensemble de salles reliées par des sorties (nord, sud, est, ouest), avec un thème, des
@@ -79,7 +79,7 @@ Tu ne fais que mettre en scène ce que le moteur renvoie : n'invente ni salles, 
   libre: {
     titre: "Aventure libre",
     accroche: "Aucun scénario imposé : le maître du jeu improvise un monde et une aventure autour de votre personnage et de son historique.",
-    niveau: "Tous niveaux",
+    niveau: "Niveau 1, 3 ou 5",
     intro: "Commence la partie dans un lieu de départ évocateur, en tenant compte de l'historique du personnage. Donne-lui une accroche claire, puis laisse le joueur agir.",
     notes_mj: `Improvise une aventure originale de fantasy adaptée au niveau et à l'historique du personnage. Crée un lieu de départ, un mystère ou une menace, des PNJ mémorables, et prévois une progression en plusieurs étapes. Note les éléments importants dans le journal.`,
   },

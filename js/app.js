@@ -1,7 +1,7 @@
 import * as des from "./des.js";
 import * as srd from "./srd.js";
 import { SCENARIOS } from "./scenarios.js";
-import { creerPersonnage, vueFiche } from "./personnage.js";
+import { NIVEAUX_DE_DEPART, creerPersonnage, mettreAJourPersonnage, vueFiche } from "./personnage.js";
 import { nouvellePartie, POTIONS } from "./moteur.js";
 import { clientOpenAI, clientServeur, condenserMemoire, extraireChoix, jouerTour, listerModeles, verifierCode } from "./mj.js";
 import { SERVEUR_URL } from "./serveur.js";
@@ -341,7 +341,7 @@ let creation = null;
 function demarrerCreation() {
   creation = {
     race: null, classe: null, methode: "standard", valeurs: [...REGLES.tableau_standard],
-    affectation: {}, competences: [], nom: "", historique: "", apparence: "", scenario: "brumesaule",
+    affectation: {}, competences: [], nom: "", historique: "", apparence: "", scenario: "brumesaule", niveau: 1,
   };
   etape = 0;
   afficherEcran("creation");
@@ -472,8 +472,22 @@ function rendreAventure() {
     <button class="choix ${creation.scenario === id ? "selection" : ""}" data-scenario="${id}">
       <strong>${echapper(s.titre)}</strong><small>${echapper(s.accroche)}</small><small>${echapper(s.niveau)}</small>
     </button>`).join("");
-  return `<h2>Choisis ton aventure</h2><div class="choix-grille">${cartes}</div>`;
+  const niveaux = SCENARIOS_TOUS_NIVEAUX.includes(creation.scenario) ? `
+    <h3>Niveau de départ</h3>
+    <div class="choix-niveau">${NIVEAUX_DE_DEPART.map((n) => `
+      <button type="button" class="choix ${creation.niveau === n ? "selection" : ""}" data-niveau="${n}">
+        <strong>Niveau ${n}</strong><small>${DESCRIPTION_NIVEAU[n]}</small></button>`).join("")}
+    </div>` : "";
+  return `<h2>Choisis ton aventure</h2><div class="choix-grille">${cartes}</div>${niveaux}`;
 }
+
+// Les aventures écrites sont prévues pour un héros débutant ; le donjon et l'aventure libre s'adaptent.
+const SCENARIOS_TOUS_NIVEAUX = ["donjon", "libre"];
+const DESCRIPTION_NIVEAU = {
+  1: "Débutant : tout est à découvrir.",
+  3: "Aguerri : sous-classe et plus de ressources.",
+  5: "Vétéran : attaque supplémentaire, sorts de niveau 3, ennemis redoutables.",
+};
 
 function brancherEtape() {
   const zone = $("#etape-contenu");
@@ -485,7 +499,12 @@ function brancherEtape() {
     creation.classe = b.dataset.classe; afficherEtape();
   }));
   zone.querySelectorAll("[data-scenario]").forEach((b) => b.addEventListener("click", () => {
-    creation.scenario = b.dataset.scenario; afficherEtape();
+    creation.scenario = b.dataset.scenario;
+    if (!SCENARIOS_TOUS_NIVEAUX.includes(creation.scenario)) creation.niveau = 1;
+    afficherEtape();
+  }));
+  zone.querySelectorAll("[data-niveau]").forEach((b) => b.addEventListener("click", () => {
+    creation.niveau = Number(b.dataset.niveau); afficherEtape();
   }));
   zone.querySelectorAll("[data-carac]").forEach((s) => s.addEventListener("change", () => {
     if (s.value === "") delete creation.affectation[s.dataset.carac];
@@ -556,6 +575,7 @@ $("#etape-suivante").addEventListener("click", () => {
     const perso = creerPersonnage({
       nom: creation.nom, race: creation.race, classe: creation.classe, caracs,
       competences: creation.competences, historique: creation.historique, apparence: creation.apparence,
+      niveau: creation.niveau,
     });
     const partie = nouvellePartie(perso, creation.scenario);
     stockage.sauvegarder(partie);
@@ -578,6 +598,7 @@ function ouvrirPartie(id) {
     return;
   }
   PARTIE = partie;
+  if (mettreAJourPersonnage(PARTIE.personnage)) stockage.sauvegarder(PARTIE);
   chargerRegles(); // préchargement du SRD pendant que le joueur lit
   history.replaceState(null, "", `${location.pathname}#${id}`);
   afficherEcran("jeu");
@@ -750,7 +771,7 @@ function rendreFinDePartie(p) {
     <p class="titre-fin">☠️ ${echapper(p.nom)} est tombé au combat</p>
     <p class="aide">Niveau ${p.niveau} · ${p.xp} XP${record}</p>
     <div class="ligne">
-      ${p.creation ? `<button type="button" class="bouton principal" data-fin="rejouer">🔁 Rejouer avec ${echapper(p.nom)} (niveau 1)</button>` : ""}
+      ${p.creation ? `<button type="button" class="bouton principal" data-fin="rejouer">🔁 Rejouer avec ${echapper(p.nom)} (niveau ${p.creation.niveau ?? 1})</button>` : ""}
       <button type="button" class="bouton" data-fin="nouveau">✨ Nouveau héros</button>
       <button type="button" class="bouton" data-fin="accueil">🏠 Accueil</button>
     </div>`;

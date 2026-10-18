@@ -13,6 +13,7 @@ Rien à installer : ça marche sur ordinateur, tablette et téléphone.
 - **iPhone / iPad** : dans Safari, bouton **Partager** → **« Sur l'écran d'accueil »**.
 
 - 🧙 **Création de personnage** : 9 races, 6 classes (Guerrier, Barbare, Roublard, Rôdeur, Clerc, Magicien), caractéristiques, compétences, historique.
+- 🏅 **Niveau de départ 1, 3 ou 5** pour le Gouffre et l'aventure libre : le héros arrive avec ses capacités de classe (attaque supplémentaire, Fougue, Ruse, Conduit divin…), son amélioration de caractéristique, ses sorts jusqu'au niveau 3 (Boule de feu, Esprits gardiens…) et un peu d'équipement en plus. Les mêmes capacités s'obtiennent en montant de niveau en jeu.
 - 📜 **Fiche toujours à jour** : PV, CA, attaques, sorts, inventaire, or, XP et niveaux.
 - 🎲 **Tu lances tes dés** : pour tes tests, attaques, sauvegardes et ton initiative, la partie s'arrête et tu lances toi-même ton d20 à l'écran (animation, bruit de dés, vibration). Le jeu applique ensuite les règles : l'IA ne peut ni tricher ni « oublier » tes PV.
 - ⚔️ **Combats** : un bandeau de combat montre les ennemis (clique pour viser), l'initiative et le round, avec des boutons d'action rapides (armes, sorts, capacités, potion, esquiver, fuir) ; jets contre la mort à 0 PV. Seul, un héros à terre n'est pas achevé : les ennemis l'ignorent ou le capturent.

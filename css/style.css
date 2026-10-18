@@ -104,6 +104,8 @@ a { color: var(--or); }
 .etapes li.fait { color: var(--texte); }
 
 .choix-grille { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: .7rem; }
+.choix-niveau { display: grid; grid-template-columns: repeat(3, 1fr); gap: .7rem; }
+@media (max-width: 600px) { .choix-niveau { grid-template-columns: 1fr; } }
 .choix {
   text-align: left; background: var(--fond-2); color: var(--texte); border: 1px solid var(--bord);
   border-radius: 8px; padding: .8rem; cursor: pointer; font: inherit; font-size: .95rem;
