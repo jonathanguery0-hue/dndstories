@@ -151,7 +151,8 @@ function majBoutonCompte(etat = null) {
   const b = $("#ouvrir-compte");
   if (!b) return;
   const c = C.compteActuel();
-  b.textContent = c ? `👤 ${c.nom}` : "👤 Connexion";
+  b.replaceChildren("👤", h("span", { class: "nom-compte" }, c ? ` ${c.nom}` : " Connexion"));
+  b.classList.toggle("connecte", Boolean(c));
   b.title = c ? `Connecté : ${c.nom}${etat ? ` (${etat})` : c.synchro_le ? " — progression synchronisée" : ""}` : "Se connecter pour retrouver sa progression partout";
   b.classList.toggle("hors-ligne", etat === "hors ligne");
 }
@@ -426,6 +427,9 @@ function flottant(sc, id, texte, genre) {
   const r = sc.rect(a);
   const f = h("div", { class: `flottant ${genre}`, style: `left:${r.cx}px; top:${Math.max(4, r.y + r.h * 0.15)}px` }, texte);
   sc.conteneur.append(f);
+  // Le texte reste entièrement dans la scène, même au-dessus d'un personnage collé au bord.
+  const demi = f.offsetWidth / 2;
+  f.style.left = `${Math.min(Math.max(r.cx, demi + 4), sc.conteneur.clientWidth - demi - 4)}px`;
   setTimeout(() => f.remove(), 1150);
 }
 
@@ -448,16 +452,17 @@ function barreStatut() {
   const objets = Object.entries(course.objets).filter(([, n]) => n > 0);
   return h("div", { class: "statut-course", id: "statut" },
     spriteCanvas(course.heros, 3),
-    h("div", { class: "info-course" }, `${st.nom} · niv ${st.niveau}`),
+    h("div", { class: "info-course nom-statut" }, `${st.nom} · niv ${st.niveau}`),
     jauge("❤️ PV", course.pv, st.pvMax),
     jauge("🔷 PM", course.pm, st.pmMax, "pm"),
+    h("div", { class: "details-statut" },
     h("span", { class: "info-course", title: "Classe d'armure" }, `🛡️ ${M.caHeros(st, salle?.type === "combat" ? salle : null)}`),
     h("span", { class: "info-course", title: "Or trouvé pendant l'expédition" }, `💰 ${course.or}`),
     objets.length ? h("span", { class: "info-course", title: "Objets" }, objets.map(([id, n]) => `${OBJETS[id].icone}${n}`).join(" ")) : null,
     statuts.length ? h("span", { class: "info-course" }, statuts.map((s) => h("span", { title: s.nom ?? NOMS_STATUTS[s.id] ?? s.id }, COMPETENCES[s.id]?.icone ?? ICONES_STATUTS[s.id] ?? "✨"))) : null,
     course.reliques.length ? h("div", { class: "reliques" }, course.reliques.map((r) => h("span", {
       class: "relique", title: `${RELIQUES[r].nom} : ${RELIQUES[r].desc}`, onclick: () => toast(`${RELIQUES[r].icone} ${RELIQUES[r].nom} : ${RELIQUES[r].desc}`),
-    }, RELIQUES[r].icone))) : null,
+    }, RELIQUES[r].icone))) : null),
   );
 }
 
@@ -654,6 +659,8 @@ function afficherCarte(depart = false) {
   jeu.append(h("div", { class: "legende" }, Object.entries(TYPES_SALLES).map(([, t]) => h("span", {}, `${t.icone} ${t.nom}`)),
     h("button", { class: "bouton petit", style: "margin-left:auto", onclick: () => afficherCamp() }, "🏕️ Voir le camp")));
   dessinerCarte(conteneur, accessibles);
+  const prochaine = conteneur.querySelector(".noeud.accessible");
+  if (prochaine && conteneur.clientWidth < 640 && course.visitees.length) prochaine.scrollIntoView({ block: "center" });
   const redessiner = () => { if (conteneur.isConnected) dessinerCarte(conteneur, M.sallesAccessibles(course)); };
   window.onresize = redessiner;
 }
@@ -671,7 +678,7 @@ function dessinerCarte(conteneur, accessibles) {
     const b = (s.col + 0.5) / s.n;
     return horizontal
       ? { x: marge + a * (L - 2 * marge), y: marge + b * (H - 2 * marge) }
-      : { x: marge + b * (L - 2 * marge), y: H - marge - a * (H - 2 * marge) };
+      : { x: marge + b * (L - 2 * marge), y: marge + a * (H - 2 * marge) };
   };
   const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
   svg.setAttribute("width", L);
@@ -913,6 +920,8 @@ function afficherCombat() {
   const type = salle.genre === "boss" ? "boss" : salle.genre === "elite" ? "elite" : "combat";
   raconter(recit, "recit", type, { ennemis: noms, etage: (salle.etage ?? 0) + 1 });
   setTimeout(placerEtiquettes, 30);
+  // La police pixel change la largeur des noms : on replace les étiquettes une fois qu'elle est chargée.
+  document.fonts?.ready.then(() => placerEtiquettes());
   dessinerActions();
 }
 
@@ -953,6 +962,12 @@ function placerEtiquettes() {
     h("span", { class: "etats" }, etats),
     h("span", { class: "zone", style: `width:${r.l}px; height:${r.h}px` }));
     scene.conteneur.append(b);
+    const demi = b.offsetWidth / 2;
+    const gauche = Math.min(Math.max(r.cx, demi + 2), scene.conteneur.clientWidth - demi - 2);
+    if (gauche !== r.cx) {
+      b.style.left = `${gauche}px`;
+      b.querySelector(".zone").style.transform = `translateX(${r.cx - gauche}px)`;
+    }
   }
 }
 
