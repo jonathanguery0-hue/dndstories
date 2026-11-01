@@ -623,7 +623,7 @@ async function partir() {
   if (course && !course.bilan) return;
   son("clic");
   try {
-    course = M.nouvelleCourse(profil, herosChoisi, diffChoisie);
+    course = M.nouvelleCourse(profil, herosChoisi, diffChoisie, { karma: reglages.karma });
   } catch (e) {
     toast(e.message, "erreur");
     return;
@@ -759,7 +759,7 @@ function salleEvenement(recit, zone) {
     if (!salle.resultat) {
       zone.append(h("div", { class: "choix" }, ev.choix.map((c, i) => {
         const bonus = c.test ? M.mod(st.caracs[c.test.carac]) + (c.test.carac === st.principale ? st.maitrise : 0) : 0;
-        const chance = c.test ? Math.round(100 * Math.min(0.95, Math.max(0.05, (21 - (c.test.dd - bonus)) / 20))) : null;
+        const chance = c.test ? Math.round(100 * M.chanceReussite(bonus, c.test.dd, { avantage: M.karmaActif(course) })) : null;
         return h("button", {
           class: "bouton", disabled: Boolean(c.cout && course.or < c.cout),
           onclick: () => choisir(i),
@@ -769,7 +769,7 @@ function salleEvenement(recit, zone) {
     }
     const r = salle.resultat;
     const res = h("div", { class: "resultat" });
-    if (r.jet) res.append(h("p", { class: "jet-texte" }, `🎲 ${r.jet.carac} : d20 ${r.jet.nat} ${r.jet.bonus >= 0 ? "+" : ""}${r.jet.bonus} = ${r.jet.total} contre DD ${r.jet.dd} — ${r.jet.reussi ? "réussite !" : "échec"}`));
+    if (r.jet) res.append(h("p", { class: "jet-texte" }, `🎲 ${r.jet.carac} : d20 ${r.jet.des?.length > 1 ? `[${r.jet.des.join(", ")}]→` : ""}${r.jet.nat} ${r.jet.bonus >= 0 ? "+" : ""}${r.jet.bonus} = ${r.jet.total} contre DD ${r.jet.dd} — ${r.jet.reussi ? "réussite !" : "échec"}`));
     const p = h("p", {}, r.texte);
     res.append(p);
     if (r.effets.length) res.append(h("div", { class: "effets" }, r.effets.map((e) => h("span", { class: "puce" }, e))));
@@ -955,7 +955,7 @@ function placerEtiquettes() {
       class: `cible-ennemi ${e.id === cibleId ? "vise" : ""} ${e.mort ? "mort" : ""}`,
       style: `left:${r.cx}px; top:${Math.max(0, r.y - 58)}px`, "data-id": e.id,
       "aria-label": `Viser ${e.nom}, ${e.pv} PV sur ${e.pvMax}`,
-      onclick: () => { if (e.mort) return; cibleId = e.id; son("clic"); placerEtiquettes(); },
+      onclick: () => { if (e.mort) return; cibleId = e.id; son("clic"); placerEtiquettes(); if (!occupe) dessinerActions(); },
     },
     h("span", { class: "nom-ennemi" }, e.nom),
     h("span", { class: "pv-ennemi" }, h("span", { style: `width:${(100 * e.pv) / e.pvMax}%` })),
@@ -980,6 +980,8 @@ function ajouterJournal(texte, genre = "", memoriser = true) {
   }
 }
 
+const pourcent = (p) => (p == null ? "" : `${Math.round(p * 100)} %`);
+
 function dessinerActions() {
   const zone = $("#actions");
   if (!zone) return;
@@ -993,7 +995,10 @@ function dessinerActions() {
         class: "bouton", disabled: occupe || !c.possible, title: c.desc,
         onclick: () => agir({ type: "competence", id: c.id, cible: cibleId }),
       }, h("span", { class: "icone" }, c.icone), h("span", { class: "txt" }, c.nom, h("span", { class: "sous" }, c.raison ?? c.desc)),
-      h("span", { class: "cout" }, c.cout ? `${c.cout} PM` : c.par_combat ? "1×/combat" : ""))),
+      h("span", { class: "cout" }, c.cout ? `${c.cout} PM` : c.par_combat ? "1×/combat" : "",
+        c.type === "attaque" || c.type === "sort_attaque"
+          ? h("small", { class: "chance" }, pourcent(M.chanceToucher(profil, course, cibleId, { sort: c.type === "sort_attaque", avantage: c.avantage })))
+          : c.type === "sort_auto" ? h("small", { class: "chance" }, "100 %") : null))),
       h("button", { class: "bouton", onclick: () => { modeActions = "principal"; dessinerActions(); } }, "↩️ Retour")));
     return;
   }
@@ -1009,7 +1014,8 @@ function dessinerActions() {
   const nbComp = dispo.competences.filter((c) => c.possible).length;
   zone.append(h("div", { class: "actions" },
     h("button", { class: "bouton danger", disabled: occupe, onclick: () => agir({ type: "attaque", cible: cibleId }) },
-      h("span", { class: "icone" }, "⚔️"), "Attaquer", h("span", { class: "sous" }, `${st.arme} · +${st.att}`)),
+      h("span", { class: "icone" }, "⚔️"), "Attaquer", h("span", { class: "sous" }, st.arme),
+      h("span", { class: "chance-bouton", title: "Chance de toucher la cible visée" }, `${pourcent(M.chanceToucher(profil, course, cibleId))}${M.karmaActif(course) ? " 🍀" : ""}`)),
     h("button", { class: "bouton bleu", disabled: occupe, onclick: () => { son("clic"); modeActions = "competences"; dessinerActions(); } },
       h("span", { class: "icone" }, "✨"), "Compétences", h("span", { class: "sous" }, `${nbComp} disponible${nbComp > 1 ? "s" : ""} · ${course.pm} PM`)),
     h("button", { class: "bouton", disabled: occupe || !dispo.objets.length, onclick: () => { son("clic"); modeActions = "objets"; dessinerActions(); } },
@@ -1081,6 +1087,7 @@ async function jouerEvenements(evs) {
       case "jet": {
         const genre = ev.critique ? "crit" : ev.nat === 1 ? "fumble" : ev.qui === "heros" ? "" : "ennemi";
         await animerDe(scene, ev.nat, genre, `${ev.total} vs CA ${ev.ca}`);
+        if (ev.karma) ajouterJournal("🍀 Dé karmique : après 2 échecs, tu lances deux d20 et gardes le meilleur.", "bon");
         ajouterJournal(`🎲 ${M.descriptionJet(ev, nom(ev.qui))}`, ev.qui === "heros" ? "heros" : "ennemi");
         if (!ev.touche) {
           flottant(scene, ev.cible, "Raté !", "rate");
@@ -1429,6 +1436,7 @@ function ouvrirReglages() {
       ? "✅ L'IA est prête : elle utilise la connexion réglée dans Contes & Dragons."
       : "⚠️ Aucune IA configurée : le jeu utilise des récits écrits à l'avance. ",
       ia ? null : h("a", { href: "index.html" }, "Configurer l'IA dans Contes & Dragons ⚙️")),
+    coche("karma", "🍀 Dé karmique : avantage après 2 échecs d'affilée", () => { if (course && !course.bilan) { course.karma = reglages.karma; sauver(); } }),
     coche("son", "🔊 Effets sonores"),
     h("div", { class: "champ" }, h("label", {}, "⏩ Vitesse des animations"), vitesse),
     h("h3", {}, "💾 Sauvegarde"),

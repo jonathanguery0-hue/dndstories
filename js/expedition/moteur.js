@@ -235,7 +235,7 @@ export const salleParId = (carte, id) => (id === "boss" ? carte.boss : carte.eta
 
 // ================================================================== expédition
 
-export function nouvelleCourse(profil, heroId, difficulte = "normal") {
+export function nouvelleCourse(profil, heroId, difficulte = "normal", { karma = true } = {}) {
   if (!profil.debloques.includes(heroId)) throw new Error("Ce héros n'est pas encore débloqué.");
   if (!profil.difficultes.includes(difficulte)) throw new Error("Cette difficulté n'est pas encore débloquée.");
   const st = statsHeros(profil, heroId);
@@ -256,6 +256,7 @@ export function nouvelleCourse(profil, heroId, difficulte = "normal") {
     or: 0, xp: 0, tues: 0, niveaux: 0,
     salle: null,
     terminee: false, issue: null, bilan: null,
+    karma, malchance: 0,
   };
 }
 
@@ -378,7 +379,7 @@ export function creerEnnemi(type, etage, difficulte, index) {
     id: `e${index}`, type, nom: base.nom, sprite: base.sprite,
     pv, pvMax: pv,
     ca: base.ca + (etage >= 5 ? 1 : 0),
-    att: base.att + diff.att + Math.floor(etage / 3),
+    att: base.att + diff.att + Math.floor(etage / 4),
     degats: base.degats, mult: diff.degats,
     dex: base.dex,
     xp: Math.round(base.xp * diff.xp),
@@ -465,6 +466,9 @@ function infligerHeros(course, montant, ev, source, detail = "") {
 function attaqueHeros(profil, course, salle, st, cible, { avantage = false, desBonus = null, sort = null } = {}, ev) {
   let av = avantage;
   if (salle.premiere && st.premiere) av = true;
+  // Dé karmique : après 2 échecs d'affilée, avantage jusqu'à la prochaine réussite.
+  const karma = karmaActif(course);
+  if (karma) av = true;
   const aTerre = statut(salle.statuts, "a_terre");
   if (aTerre) salle.statuts = salle.statuts.filter((s) => s !== aTerre);
   const jet = d20(av, Boolean(aTerre));
@@ -474,8 +478,9 @@ function attaqueHeros(profil, course, salle, st, cible, { avantage = false, desB
   const total = nat + bonus;
   const critique = nat >= st.crit;
   const touche = nat !== 1 && (critique || total >= cible.ca);
+  noterChance(course, touche);
   ev.push({ type: "jet", qui: "heros", cible: cible.id, des: jet.des, nat, bonus, total, ca: cible.ca, touche, critique,
-    avantage: av && !aTerre, desavantage: Boolean(aTerre) && !av });
+    avantage: av && !aTerre, desavantage: Boolean(aTerre) && !av, karma: karma && !aTerre });
   if (!touche) return;
   const j = sort
     ? jetDegats([sort.des], (sort.carac ? mod(st.caracs[sort.carac]) : 0) + st.sorts, critique)
@@ -831,10 +836,44 @@ function defaite(course, salle, ev) {
 // ================================================================== autres salles
 
 /** Jet de caractéristique : d20 + modificateur (+ maîtrise pour la caractéristique principale du héros). */
-export function testCarac(st, carac, dd) {
-  const nat = d(20);
+export function testCarac(st, carac, dd, avantage = false) {
+  const jet = d20(avantage);
+  const nat = jet.resultat;
   const bonus = mod(st.caracs[carac]) + (carac === st.principale ? st.maitrise : 0);
-  return { carac, dd, nat, bonus, total: nat + bonus, reussi: nat === 20 || (nat !== 1 && nat + bonus >= dd) };
+  return { carac, dd, nat, des: jet.des, bonus, total: nat + bonus, reussi: nat === 20 || (nat !== 1 && nat + bonus >= dd), karma: avantage };
+}
+
+/**
+ * Chance (0 à 1) que le héros touche la cible avec son arme (ou un sort à jet d'attaque),
+ * en tenant compte des effets en cours, du dé karmique et d'un éventuel désavantage.
+ */
+export function chanceToucher(profil, course, cibleId, { sort = false, avantage = false } = {}) {
+  const salle = course.salle;
+  if (salle?.type !== "combat") return null;
+  const cible = salle.ennemis.find((e) => e.id === cibleId && !e.mort) ?? actifs(salle)[0];
+  if (!cible) return null;
+  const st = statsCourse(profil, course);
+  return chanceReussite((sort ? st.attSort : st.att) + bonusStatuts(salle).att, cible.ca, {
+    avantage: avantage || karmaActif(course) || (salle.premiere && st.premiere),
+    desavantage: Boolean(statut(salle.statuts, "a_terre")),
+    critique: st.crit,
+  });
+}
+
+/** Le dé karmique est-il prêt (2 échecs d'affilée, option active) ? */
+export const karmaActif = (course) => course.karma !== false && (course.malchance ?? 0) >= 2;
+
+function noterChance(course, reussi) {
+  course.malchance = reussi ? 0 : (course.malchance ?? 0) + 1;
+}
+
+/** Probabilité (0 à 1) de réussir un jet de d20 + bonus contre une difficulté, avec 1 raté et 20 réussi d'office. */
+export function chanceReussite(bonus, difficulte, { avantage = false, desavantage = false, critique = 20 } = {}) {
+  const besoin = Math.min(Math.max(difficulte - bonus, 2), critique);
+  const p = (21 - besoin) / 20;
+  if (avantage && !desavantage) return 1 - (1 - p) ** 2;
+  if (desavantage && !avantage) return p * p;
+  return p;
 }
 
 export function evenementCourant(course) {
@@ -854,7 +893,8 @@ export function choisirEvenement(profil, course, index) {
   let jet = null;
   let issue = choix.resultat;
   if (choix.test) {
-    jet = testCarac(st, choix.test.carac, choix.test.dd);
+    jet = testCarac(st, choix.test.carac, choix.test.dd, karmaActif(course));
+    noterChance(course, jet.reussi);
     issue = jet.reussi ? choix.succes : choix.echec;
   }
   const effets = appliquerEffets(profil, course, issue);

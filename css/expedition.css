@@ -390,3 +390,7 @@ select { font-size: 1.05rem; min-height: 48px; background: var(--fond-2); color:
   .arbre { gap: .45rem; }
   .talent { min-height: 62px; }
 }
+
+.sous-actions .bouton .cout { display: flex; flex-direction: column; align-items: flex-end; }
+.sous-actions .bouton .cout .chance { color: var(--vert); font-size: 1rem; }
+.actions .bouton .chance-bouton { font-family: var(--texte-police); font-size: .82rem; font-weight: 700; color: #ffe9a8; line-height: 1; }

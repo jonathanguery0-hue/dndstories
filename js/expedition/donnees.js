@@ -198,12 +198,12 @@ export const FORGE = {
 // ia : comportement particulier (voir moteur.js). taille : échelle du dessin.
 
 export const ENNEMIS = {
-  gobelin: { nom: "Gobelin", sprite: "gobelin", pv: 7, ca: 13, att: 4, degats: "1d6+1", dex: 2, xp: 12, or: [2, 6], cout: 1 },
-  archer: { nom: "Archer gobelin", sprite: "archer", pv: 6, ca: 12, att: 4, degats: "1d6+1", dex: 2, xp: 12, or: [2, 6], cout: 1 },
-  chaman: { nom: "Chaman gobelin", sprite: "chaman", pv: 9, ca: 11, att: 4, degats: "2d4", dex: 1, xp: 18, or: [4, 9], cout: 1.5, ia: "chaman" },
-  loup: { nom: "Loup des cavernes", sprite: "loup", pv: 11, ca: 13, att: 4, degats: "2d4", dex: 2, xp: 16, or: [0, 2], cout: 1.5, ia: "loup" },
-  gobelours: { nom: "Gobelours", sprite: "gobelours", pv: 22, ca: 14, att: 5, degats: "2d6+2", dex: 1, xp: 45, or: [10, 20], ia: "brute", taille: 1.25, elite: true },
-  capitaine: { nom: "Capitaine hobgobelin", sprite: "capitaine", pv: 20, ca: 15, att: 5, degats: "1d8+2", dex: 1, xp: 45, or: [12, 22], ia: "capitaine", taille: 1.15, elite: true },
+  gobelin: { nom: "Gobelin", sprite: "gobelin", pv: 7, ca: 12, att: 3, degats: "1d6+1", dex: 2, xp: 12, or: [2, 6], cout: 1 },
+  archer: { nom: "Archer gobelin", sprite: "archer", pv: 6, ca: 11, att: 3, degats: "1d6+1", dex: 2, xp: 12, or: [2, 6], cout: 1 },
+  chaman: { nom: "Chaman gobelin", sprite: "chaman", pv: 9, ca: 11, att: 3, degats: "2d4", dex: 1, xp: 18, or: [4, 9], cout: 1.5, ia: "chaman" },
+  loup: { nom: "Loup des cavernes", sprite: "loup", pv: 11, ca: 12, att: 3, degats: "2d4", dex: 2, xp: 16, or: [0, 2], cout: 1.5, ia: "loup" },
+  gobelours: { nom: "Gobelours", sprite: "gobelours", pv: 22, ca: 13, att: 4, degats: "2d6+2", dex: 1, xp: 45, or: [10, 20], ia: "brute", taille: 1.25, elite: true },
+  capitaine: { nom: "Capitaine hobgobelin", sprite: "capitaine", pv: 20, ca: 14, att: 4, degats: "1d8+2", dex: 1, xp: 45, or: [12, 22], ia: "capitaine", taille: 1.15, elite: true },
   roi: { nom: "Grokk, Roi gobelin", sprite: "roi", pv: 40, ca: 14, att: 5, degats: "1d10+2", dex: 1, xp: 120, or: [40, 60], ia: "roi", taille: 1.5, boss: true },
 };
 
