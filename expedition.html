@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<link rel="icon" href="icones/icone.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="icones/apple-touch-icon.png">
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#141019">
+<meta name="description" content="Jeu de rôle au tour par tour en pixel art : explore le repaire des gobelins avec une IA maître du jeu.">
+<title>Le Repaire de Grokk</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Jersey+10&family=Nunito:wght@400;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/expedition.css">
+</head>
+<body>
+<header class="barre">
+  <a href="index.html" class="retour" title="Retour à Contes &amp; Dragons">‹ Contes &amp; Dragons</a>
+  <span class="titre-jeu">⚔️ Le Repaire de Grokk</span>
+  <span class="barre-droite">
+    <span class="or-profil" id="or-profil" title="Or du camp">💰 0</span>
+    <button class="bouton-icone" id="ouvrir-reglages" title="Réglages" aria-label="Réglages">⚙️</button>
+  </span>
+</header>
+
+<main id="jeu" aria-live="polite">
+  <noscript><p class="erreur">Ce jeu a besoin de JavaScript pour fonctionner.</p></noscript>
+</main>
+
+<div id="modale" class="modale cache" role="dialog" aria-modal="true">
+  <div class="modale-boite">
+    <button class="fermer" id="fermer-modale" aria-label="Fermer">✕</button>
+    <div id="modale-contenu"></div>
+  </div>
+</div>
+
+<div id="toasts" aria-live="polite"></div>
+
+<script type="module" src="js/expedition/app.js"></script>
+</body>
+</html>
