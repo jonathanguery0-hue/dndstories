@@ -296,3 +296,12 @@ select { font-size: 1.05rem; min-height: 48px; background: var(--fond-2); color:
 }
 
 .emplacement .bouton, .etal .bouton .txt { flex-direction: column; gap: 0; }
+
+.bouton-compte {
+  font-family: var(--pixel); font-size: 1.2rem; color: var(--texte); background: var(--carte-2); border: 2px solid #000;
+  border-radius: 6px; min-height: 44px; padding: 0 .7rem; cursor: pointer; max-width: 11rem; overflow: hidden;
+  text-overflow: ellipsis; white-space: nowrap;
+}
+.bouton-compte.hors-ligne { opacity: .6; }
+@media (max-width: 560px) { .bouton-compte { max-width: 7rem; font-size: 1.05rem; } }
+.champ input { font-size: 1.1rem; min-height: 52px; background: var(--fond-2); color: var(--texte); border: 2px solid #000; border-radius: 6px; padding: 0 .8rem; }

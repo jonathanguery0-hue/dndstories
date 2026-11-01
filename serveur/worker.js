@@ -16,6 +16,10 @@
 //   LIMITE_VOIX     (texte)   demandes de voix IA max par joueur toutes les 10 min (déf. 300) — facultatif
 //   CODES_ACCES     (secret)  « prenom:code,prenom:code » pour réserver le jeu à des amis — facultatif
 //   ACCES_LIBRE     (texte)   « oui » pour garder le jeu ouvert même avec des codes      — facultatif
+//
+// Comptes joueurs (Le Repaire de Grokk : retrouver sa progression sur tous ses appareils) : il faut une
+// base Upstash Redis. Sur Vercel : Storage → Upstash for Redis, les variables sont ajoutées toutes seules.
+//   KV_REST_API_URL + KV_REST_API_TOKEN   (ou UPSTASH_REDIS_REST_URL + UPSTASH_REDIS_REST_TOKEN)  — facultatif
 
 const OPENAI_URL = "https://api.openai.com/v1/chat/completions";
 const OPENAI_VOIX_URL = "https://api.openai.com/v1/audio/speech";
@@ -65,8 +69,8 @@ export default {
       || autorisees.some((o) => referent.startsWith(`${o}/`));
     const cors = {
       "Access-Control-Allow-Origin": origineOk && origine ? origine : "*",
-      "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
-      "Access-Control-Allow-Headers": "Content-Type, X-Code-Acces",
+      "Access-Control-Allow-Methods": "GET, POST, PUT, OPTIONS",
+      "Access-Control-Allow-Headers": "Content-Type, X-Code-Acces, Authorization",
       "Access-Control-Expose-Headers": "X-Acces",
       "Access-Control-Max-Age": "86400",
       Vary: "Origin",
@@ -94,6 +98,12 @@ export default {
     if (chemin === "/verifier" && request.method === "GET") {
       if (!joueur) return refus();
       return json(200, { ok: true, joueur, acces_libre: accesLibre, modele: env.MODELE || MODELE_DEFAUT });
+    }
+
+    if (chemin === "/compte") {
+      const ip = request.headers.get("CF-Connecting-IP") ?? request.headers.get("X-Real-IP")
+        ?? request.headers.get("X-Forwarded-For")?.split(",")[0].trim() ?? "inconnue";
+      return gererCompte(request, env, { json, erreur, joueur, ip });
     }
 
     if (joueur && (chemin === "/v1/chat/completions" || chemin === "/v1/audio/speech")) {
@@ -229,4 +239,154 @@ function egal(a, b) {
     diff |= (a.charCodeAt(i) || 0) ^ (b.charCodeAt(i) || 0);
   }
   return diff === 0;
+}
+
+// ================================================================== comptes joueurs
+//
+// POST /compte { action: "inscription" | "connexion", nom, mot_de_passe }  → { jeton, nom, sauvegarde }
+// POST /compte { action: "deconnexion" }                                   (avec Authorization: Bearer jeton)
+// GET  /compte                                                             → { nom, sauvegarde }
+// PUT  /compte { donnees, maj_le, version_base }                           → { version } ou 409 { sauvegarde }
+//
+// Mots de passe : PBKDF2-SHA256 (100 000 tours) avec un sel par compte. Jetons de connexion : 32 octets
+// aléatoires, seule leur empreinte SHA-256 est enregistrée, valables 180 jours.
+
+const ITERATIONS = 100_000;
+const DUREE_JETON = 180 * 24 * 3600;
+const TAILLE_MAX_SAUVEGARDE = 300_000;
+const ESSAIS_MAX = 10; // mots de passe faux par compte toutes les 15 minutes
+const LIMITE_COMPTES = 30; // inscriptions ou connexions par adresse IP toutes les 10 minutes
+
+function stockageRedis(env) {
+  const url = env.KV_REST_API_URL || env.UPSTASH_REDIS_REST_URL;
+  const jeton = env.KV_REST_API_TOKEN || env.UPSTASH_REDIS_REST_TOKEN;
+  if (!url || !jeton) return null;
+  return async (...commande) => {
+    const r = await fetch(String(url).replace(/\/+$/, ""), {
+      method: "POST",
+      headers: { Authorization: `Bearer ${jeton}`, "Content-Type": "application/json" },
+      body: JSON.stringify(commande.map(String)),
+    });
+    let d = null;
+    try { d = await r.json(); } catch { /* corps vide */ }
+    if (!r.ok || d?.error) throw new Error(`stockage : ${d?.error ?? r.status}`);
+    return d.result;
+  };
+}
+
+const hex = (octets) => [...octets].map((o) => o.toString(16).padStart(2, "0")).join("");
+const depuisHex = (texte) => new Uint8Array(String(texte).match(/../g).map((h) => parseInt(h, 16)));
+const aleatoireHex = (n) => hex(crypto.getRandomValues(new Uint8Array(n)));
+const empreinte = async (texte) => hex(new Uint8Array(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(texte))));
+
+async function hacherMotDePasse(motDePasse, sel, iterations = ITERATIONS) {
+  const cle = await crypto.subtle.importKey("raw", new TextEncoder().encode(motDePasse), "PBKDF2", false, ["deriveBits"]);
+  const bits = await crypto.subtle.deriveBits({ name: "PBKDF2", hash: "SHA-256", salt: depuisHex(sel), iterations }, cle, 256);
+  return hex(new Uint8Array(bits));
+}
+
+/** Nom de compte normalisé (minuscules), ou null s'il n'est pas valable. */
+export function normaliserNom(nom) {
+  const n = String(nom ?? "").trim().normalize("NFC").toLowerCase();
+  return /^[a-z0-9àâäéèêëîïôöùûüç_-]{3,24}$/.test(n) ? n : null;
+}
+
+async function gererCompte(request, env, { json, erreur, joueur, ip }) {
+  const redis = stockageRedis(env);
+  if (!redis) {
+    return erreur(503, "Les comptes ne sont pas encore activés sur ce serveur (il faut une base Upstash Redis).", "sans_stockage");
+  }
+  const jetonRecu = (request.headers.get("Authorization") ?? "").replace(/^Bearer\s+/i, "").trim();
+  const nomDuJeton = async () => {
+    if (!/^[0-9a-f]{64}$/.test(jetonRecu)) return null;
+    return redis("GET", `jeton:${await empreinte(jetonRecu)}`);
+  };
+  const lireSauvegarde = async (nom) => {
+    const brut = await redis("GET", `sauvegarde:${nom}`);
+    try { return brut ? JSON.parse(brut) : null; } catch { return null; }
+  };
+
+  try {
+    if (request.method === "GET") {
+      const nom = await nomDuJeton();
+      if (!nom) return erreur(401, "Session expirée : reconnecte-toi.", "non_connecte");
+      return json(200, { nom, sauvegarde: await lireSauvegarde(nom) });
+    }
+
+    let corps;
+    try {
+      const texte = await request.text();
+      if (texte.length > TAILLE_MAX_SAUVEGARDE + 2000) return erreur(413, "Sauvegarde trop volumineuse.", "trop_gros");
+      corps = JSON.parse(texte || "{}");
+    } catch {
+      return erreur(400, "Requête invalide.");
+    }
+
+    if (request.method === "PUT") {
+      const nom = await nomDuJeton();
+      if (!nom) return erreur(401, "Session expirée : reconnecte-toi.", "non_connecte");
+      if (!corps?.donnees || typeof corps.donnees !== "object") return erreur(400, "Sauvegarde invalide.");
+      const actuelle = await lireSauvegarde(nom);
+      // Une autre machine a enregistré entre-temps : on renvoie sa version, le jeu choisit la plus récente.
+      if (actuelle && Number(corps.version_base ?? -1) !== actuelle.version) {
+        return json(409, { error: { message: "Une sauvegarde plus récente existe.", code: "conflit" }, sauvegarde: actuelle });
+      }
+      const nouvelle = { donnees: corps.donnees, maj_le: Number(corps.maj_le) || Date.now(), version: (actuelle?.version ?? 0) + 1 };
+      const texte = JSON.stringify(nouvelle);
+      if (texte.length > TAILLE_MAX_SAUVEGARDE) return erreur(413, "Sauvegarde trop volumineuse.", "trop_gros");
+      await redis("SET", `sauvegarde:${nom}`, texte);
+      return json(200, { ok: true, version: nouvelle.version, maj_le: nouvelle.maj_le });
+    }
+
+    if (request.method !== "POST") return erreur(405, "Méthode non prise en charge.");
+
+    if (corps.action === "deconnexion") {
+      if (/^[0-9a-f]{64}$/.test(jetonRecu)) await redis("DEL", `jeton:${await empreinte(jetonRecu)}`);
+      return json(200, { ok: true });
+    }
+
+    if (corps.action !== "inscription" && corps.action !== "connexion") return erreur(400, "Action inconnue.");
+    if (attenteAvantDemande(`compte:${ip}`, LIMITE_COMPTES)) {
+      return erreur(429, "Trop d'essais depuis cet appareil : réessaie dans quelques minutes.", "trop_essais");
+    }
+    const nom = normaliserNom(corps.nom);
+    const motDePasse = String(corps.mot_de_passe ?? "");
+    if (!nom) return erreur(400, "Nom de compte : 3 à 24 lettres, chiffres, - ou _.", "nom_invalide");
+    if (motDePasse.length < 6 || motDePasse.length > 128) return erreur(400, "Le mot de passe doit faire au moins 6 caractères.", "mdp_court");
+
+    if (corps.action === "inscription") {
+      // Si l'organisateur réserve le jeu à des codes d'accès, il faut un code pour créer un compte.
+      if (!joueur) return erreur(401, "Ce jeu demande un code d'accès pour créer un compte.", "code_requis");
+      const sel = aleatoireHex(16);
+      const fiche = { nom: String(corps.nom).trim().slice(0, 24), sel, hash: await hacherMotDePasse(motDePasse, sel), iterations: ITERATIONS, cree_le: Date.now() };
+      const cree = await redis("SET", `compte:${nom}`, JSON.stringify(fiche), "NX");
+      if (cree !== "OK") return erreur(409, "Ce nom de compte est déjà pris.", "nom_pris");
+      console.log(`compte créé ${nom}`);
+      return json(200, { jeton: await ouvrirSession(redis, nom), nom, sauvegarde: null });
+    }
+
+    // Connexion
+    const essais = Number(await redis("GET", `echecs:${nom}`)) || 0;
+    if (essais >= ESSAIS_MAX) return erreur(429, "Trop de mots de passe faux : réessaie dans 15 minutes.", "trop_essais");
+    const brut = await redis("GET", `compte:${nom}`);
+    let fiche = null;
+    try { fiche = brut ? JSON.parse(brut) : null; } catch { /* fiche abîmée */ }
+    const calcule = await hacherMotDePasse(motDePasse, fiche?.sel ?? "00".repeat(16), fiche?.iterations ?? ITERATIONS);
+    if (!fiche || !egal(calcule, fiche.hash)) {
+      await redis("INCR", `echecs:${nom}`);
+      await redis("EXPIRE", `echecs:${nom}`, 900);
+      return erreur(401, "Nom de compte ou mot de passe incorrect.", "identifiants_invalides");
+    }
+    await redis("DEL", `echecs:${nom}`);
+    return json(200, { jeton: await ouvrirSession(redis, nom), nom, sauvegarde: await lireSauvegarde(nom) });
+  } catch (e) {
+    console.log(`compte : erreur ${e?.message ?? e}`);
+    return erreur(502, "La base de données des comptes ne répond pas. Réessaie dans un instant.", "stockage_indisponible");
+  }
+}
+
+async function ouvrirSession(redis, nom) {
+  const jeton = aleatoireHex(32);
+  await redis("SET", `jeton:${await empreinte(jeton)}`, nom, "EX", DUREE_JETON);
+  return jeton;
 }

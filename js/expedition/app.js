@@ -3,6 +3,7 @@
 import * as M from "./moteur.js";
 import { COMPETENCES, DIFFICULTES, ENNEMIS, EVENEMENTS, FORGE, HEROS, NB_ETAGES, NIVEAU_MAX, OBJETS, ORDRE_HEROS, RELIQUES, TYPES_SALLES, xpPourNiveau } from "./donnees.js";
 import * as S from "./sauvegarde.js";
+import * as C from "./compte.js";
 import { creerNarrateur, iaDisponible } from "./narrateur.js";
 import { dessinerCamp, dessinerDonjon, dessinerSprite, spriteCanvas } from "./sprites.js";
 
@@ -43,13 +44,214 @@ const attendre = (ms) => new Promise((r) => setTimeout(r, ms));
 const VITESSES = { lente: 1.6, normale: 1, rapide: 0.5 };
 const pause = (ms) => attendre(ms * (VITESSES[reglages.vitesse] ?? 1));
 
+/** Empreinte du contenu sauvegardé (sans la date) : sert à savoir si quelque chose a vraiment changé. */
+function empreinteSauvegarde() {
+  const { maj_le: _date, ...reste } = profil;
+  return JSON.stringify([reste, course && !course.bilan ? course : null]);
+}
+let derniereEmpreinte = null;
+
 function sauver() {
-  S.enregistrerProfil(profil);
-  if (course && !course.bilan) {
-    course.memoire = narrateur.souvenirs;
-    S.enregistrerCourse(course);
+  if (course && !course.bilan) course.memoire = narrateur.souvenirs;
+  const empreinte = empreinteSauvegarde();
+  if (empreinte !== derniereEmpreinte) {
+    if (derniereEmpreinte !== null) profil.maj_le = Date.now();
+    derniereEmpreinte = empreinte;
+    planifierEnvoi();
   }
+  S.enregistrerProfil(profil);
+  if (course && !course.bilan) S.enregistrerCourse(course);
   $("#or-profil").textContent = `💰 ${profil.or}`;
+}
+
+// ================================================================== compte : synchronisation entre appareils
+
+let minuterieEnvoi = 0;
+let envoiEnCours = null;
+
+const donneesASynchroniser = () => ({ profil, course: course && !course.bilan ? course : null });
+
+function planifierEnvoi() {
+  if (!C.compteActuel()) return;
+  clearTimeout(minuterieEnvoi);
+  minuterieEnvoi = setTimeout(() => envoyerMaintenant(), 2500);
+}
+
+/** Envoie la progression au compte ; en cas de conflit, garde la plus récente des deux. */
+async function envoyerMaintenant({ keepalive = false, essai = 0 } = {}) {
+  clearTimeout(minuterieEnvoi);
+  if (!C.compteActuel()) return;
+  if (envoiEnCours && !keepalive) {
+    await envoiEnCours;
+    return envoyerMaintenant({ keepalive, essai });
+  }
+  let encore = false;
+  const tache = (async () => {
+    try {
+      await C.envoyer(donneesASynchroniser(), profil.maj_le ?? Date.now(), { keepalive });
+      majBoutonCompte();
+    } catch (e) {
+      if (e.code === "conflit" && e.donnees?.sauvegarde) {
+        const srv = e.donnees.sauvegarde;
+        if ((srv.maj_le ?? 0) > (profil.maj_le ?? 0)) {
+          adopter(srv, "☁️ Une partie plus récente a été jouée sur un autre appareil : elle est chargée.");
+        } else if (essai < 2) {
+          C.majCompte({ version: srv.version });
+          encore = true;
+        }
+      } else if (e.code === "non_connecte") {
+        toast("Session expirée : reconnecte-toi avec le bouton 👤.", "erreur");
+      }
+      majBoutonCompte(e.code === "hors_ligne" ? "hors ligne" : null);
+    }
+  })();
+  envoiEnCours = tache;
+  await tache;
+  if (envoiEnCours === tache) envoiEnCours = null;
+  if (encore) await envoyerMaintenant({ keepalive, essai: essai + 1 });
+}
+
+/** Remplace la progression de cet appareil par celle du compte. */
+function adopter(srv, message) {
+  const donnees = srv.donnees ?? {};
+  profil = M.normaliserProfil(donnees.profil);
+  profil.maj_le = srv.maj_le;
+  course = donnees.course?.carte && !donnees.course.bilan ? donnees.course : null;
+  if (!course) S.effacerCourse();
+  C.majCompte({ version: srv.version, synchro_le: Date.now() });
+  narrateur = creerNarrateur({ actif: reglages.mj_ia, memoire: course?.memoire ?? [] });
+  herosChoisi = profil.debloques.includes(profil.dernier_heros) ? profil.dernier_heros : "guerrier";
+  diffChoisie = profil.difficultes.includes(profil.difficulte) ? profil.difficulte : "normal";
+  derniereEmpreinte = empreinteSauvegarde();
+  S.enregistrerProfil(profil);
+  if (course) S.enregistrerCourse(course);
+  $("#or-profil").textContent = `💰 ${profil.or}`;
+  if (message) toast(message, "or");
+  majBoutonCompte();
+  fermerModale();
+  rendre();
+}
+
+/** Au démarrage (et au retour sur l'onglet) : récupère la partie du compte si elle est plus récente. */
+async function synchroniser() {
+  if (!C.compteActuel() || occupe) return;
+  try {
+    const srv = await C.telecharger();
+    if (occupe) return;
+    if (srv && (srv.maj_le ?? 0) > (profil.maj_le ?? 0)) adopter(srv, "☁️ Progression récupérée depuis ton compte.");
+    else if (!srv || (profil.maj_le ?? 0) > (srv.maj_le ?? 0)) await envoyerMaintenant();
+    majBoutonCompte();
+  } catch (e) {
+    if (e.code === "non_connecte") toast("Session expirée : reconnecte-toi avec le bouton 👤.", "erreur");
+    majBoutonCompte(e.code === "hors_ligne" ? "hors ligne" : null);
+  }
+}
+
+function majBoutonCompte(etat = null) {
+  const b = $("#ouvrir-compte");
+  if (!b) return;
+  const c = C.compteActuel();
+  b.textContent = c ? `👤 ${c.nom}` : "👤 Connexion";
+  b.title = c ? `Connecté : ${c.nom}${etat ? ` (${etat})` : c.synchro_le ? " — progression synchronisée" : ""}` : "Se connecter pour retrouver sa progression partout";
+  b.classList.toggle("hors-ligne", etat === "hors ligne");
+}
+
+function ouvrirCompte() {
+  if (!C.comptesPossibles()) {
+    ouvrirModale(
+      h("h2", {}, "👤 Comptes joueurs"),
+      h("p", {}, "Les comptes passent par le serveur du jeu, qui n'est pas joignable depuis cette adresse."),
+      h("p", {}, "👉 Ouvre le jeu depuis ton adresse Vercel (elle ressemble à ", h("b", {}, "https://dndstories….vercel.app/expedition.html"),
+        ") : tu la trouves sur vercel.com, dans ton projet dndstories, bouton « Visit »."),
+      h("p", { class: "discret" }, "En attendant, ta progression est enregistrée dans ce navigateur, et tu peux l'exporter dans ⚙️ Réglages."));
+    return;
+  }
+  const c = C.compteActuel();
+  if (c) {
+    const quand = c.synchro_le ? new Date(c.synchro_le).toLocaleString("fr-FR", { dateStyle: "short", timeStyle: "short" }) : "pas encore";
+    ouvrirModale(
+      h("h2", {}, `👤 Compte : ${c.nom}`),
+      h("p", {}, "Ta progression (héros, niveaux, or, équipement et expédition en cours) est enregistrée sur ton compte. "
+        + "Connecte-toi avec le même nom sur la Tesla, ton téléphone ou ton ordinateur pour la retrouver."),
+      h("p", { class: "discret" }, `Dernière synchronisation : ${quand}.`),
+      h("div", { class: "rangee" },
+        h("button", { class: "bouton principal", onclick: async () => {
+          await envoyerMaintenant();
+          await synchroniser();
+          toast("☁️ Progression synchronisée.");
+          if (!$("#modale").classList.contains("cache")) ouvrirCompte();
+        } }, "🔄 Synchroniser maintenant"),
+        h("button", { class: "bouton danger", onclick: async () => {
+          await envoyerMaintenant();
+          await C.deconnecter();
+          majBoutonCompte();
+          fermerModale();
+          toast("Déconnecté. Ta progression reste aussi sur cet appareil.");
+        } }, "🚪 Se déconnecter")));
+    return;
+  }
+  const nom = h("input", { type: "text", autocomplete: "username", autocapitalize: "none", spellcheck: "false", maxlength: "24", placeholder: "ex. jonathan" });
+  const mdp = h("input", { type: "password", autocomplete: "current-password", maxlength: "128", placeholder: "6 caractères minimum" });
+  const voir = h("label", { class: "interrupteur" }, h("input", { type: "checkbox", onchange: (e) => { mdp.type = e.target.checked ? "text" : "password"; } }), "Afficher le mot de passe");
+  const erreurTxt = h("p", { class: "erreur" });
+  const boutons = [];
+  const valider = async (action) => {
+    erreurTxt.textContent = "";
+    boutons.forEach((b) => { b.disabled = true; });
+    try {
+      const r = await C.entrer(action, nom.value, mdp.value);
+      await apresConnexion(r, action);
+    } catch (e) {
+      erreurTxt.textContent = e.message;
+      boutons.forEach((b) => { b.disabled = false; });
+    }
+  };
+  boutons.push(
+    h("button", { class: "bouton principal", onclick: () => valider("connexion") }, "🔑 Se connecter"),
+    h("button", { class: "bouton", onclick: () => valider("inscription") }, "✨ Créer un compte"));
+  mdp.addEventListener("keydown", (e) => { if (e.key === "Enter") valider("connexion"); });
+  ouvrirModale(
+    h("h2", {}, "👤 Retrouver ta progression partout"),
+    h("p", {}, "Crée un compte une fois (un nom et un mot de passe), puis connecte-toi avec les mêmes identifiants sur "
+      + "chaque appareil : la Tesla, ton téléphone, ton ordinateur… Tes héros, ton or et ton expédition en cours te suivent."),
+    h("div", { class: "champ" }, h("label", {}, "Nom de compte"), nom),
+    h("div", { class: "champ" }, h("label", {}, "Mot de passe"), mdp),
+    voir,
+    erreurTxt,
+    h("div", { class: "rangee" }, boutons),
+    h("p", { class: "discret" }, "🔒 Le mot de passe est protégé (haché) sur le serveur du jeu, jamais enregistré en clair. "
+      + "Choisis-en un que tu n'utilises nulle part ailleurs."));
+  setTimeout(() => nom.focus(), 50);
+}
+
+async function apresConnexion(r, action) {
+  const srv = r.sauvegarde;
+  majBoutonCompte();
+  if (!srv) {
+    await envoyerMaintenant();
+    fermerModale();
+    toast(action === "inscription" ? "✨ Compte créé ! Ta progression est enregistrée dessus." : "☁️ Connecté : ta progression est enregistrée sur ton compte.", "or");
+    return;
+  }
+  const profilCompte = M.normaliserProfil(srv.donnees?.profil);
+  if (C.profilVierge(profil)) {
+    adopter(srv, `☁️ Bon retour, ${r.nom} ! Ta progression est chargée.`);
+    return;
+  }
+  // Les deux ont de la progression : on demande laquelle garder.
+  ouvrirModale(
+    h("h2", {}, "Quelle progression garder ?"),
+    h("p", {}, "Ce compte et cet appareil ont chacun une progression différente."),
+    h("div", { class: "choix" },
+      h("button", { class: "bouton principal", onclick: () => adopter(srv, "☁️ Progression du compte chargée.") },
+        "☁️ Celle du compte", h("span", { class: "sous" }, C.resumeProfil(profilCompte))),
+      h("button", { class: "bouton", onclick: async () => {
+        C.majCompte({ version: srv.version });
+        await envoyerMaintenant();
+        fermerModale();
+        toast("📱 Progression de cet appareil enregistrée sur ton compte.", "or");
+      } }, "📱 Celle de cet appareil", h("span", { class: "sous" }, C.resumeProfil(profil)))),
+    h("p", { class: "discret" }, "L'autre progression sera remplacée."));
 }
 
 function toast(texte, genre = "") {
@@ -1237,8 +1439,16 @@ function exporterSauvegarde() {
 }
 
 $("#ouvrir-reglages").addEventListener("click", ouvrirReglages);
+$("#ouvrir-compte").addEventListener("click", () => { son("clic"); ouvrirCompte(); });
+document.addEventListener("visibilitychange", () => {
+  if (document.visibilityState === "hidden") envoyerMaintenant({ keepalive: true });
+  else synchroniser();
+});
 
 // Garde l'ennemi visé et les étiquettes bien placés si l'écran change de taille (rotation…).
 window.addEventListener("orientationchange", () => setTimeout(() => placerEtiquettes(), 300));
 
+derniereEmpreinte = empreinteSauvegarde();
+majBoutonCompte();
 rendre();
+synchroniser();

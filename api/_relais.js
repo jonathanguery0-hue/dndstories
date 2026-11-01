@@ -6,4 +6,5 @@ const traiter = (request) => relais.fetch(request, process.env);
 
 export const GET = traiter;
 export const POST = traiter;
+export const PUT = traiter;
 export const OPTIONS = traiter;
