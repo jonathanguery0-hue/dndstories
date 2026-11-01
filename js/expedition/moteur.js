@@ -442,10 +442,10 @@ export function caHeros(st, salle) {
   return st.ca + (salle ? bonusStatuts(salle).ca : 0);
 }
 
-function infligerEnnemi(profil, course, salle, ennemi, montant, ev, source = "") {
+function infligerEnnemi(profil, course, salle, ennemi, montant, ev, source = "", detail = "") {
   const degats = Math.max(1, Math.round(montant));
   ennemi.pv = Math.max(0, ennemi.pv - degats);
-  ev.push({ type: "degats", cible: ennemi.id, montant: degats, source });
+  ev.push({ type: "degats", cible: ennemi.id, montant: degats, source, ...(detail ? { detail } : {}) });
   if (ennemi.pv <= 0 && !ennemi.mort) {
     ennemi.mort = true;
     course.tues += 1;
@@ -456,10 +456,10 @@ function infligerEnnemi(profil, course, salle, ennemi, montant, ev, source = "")
   }
 }
 
-function infligerHeros(course, montant, ev, source) {
+function infligerHeros(course, montant, ev, source, detail = "") {
   const degats = Math.max(1, Math.round(montant));
   course.pv = Math.max(0, course.pv - degats);
-  ev.push({ type: "degats", cible: "heros", montant: degats, source });
+  ev.push({ type: "degats", cible: "heros", montant: degats, source, ...(detail ? { detail } : {}) });
 }
 
 function attaqueHeros(profil, course, salle, st, cible, { avantage = false, desBonus = null, sort = null } = {}, ev) {
@@ -477,14 +477,37 @@ function attaqueHeros(profil, course, salle, st, cible, { avantage = false, desB
   ev.push({ type: "jet", qui: "heros", cible: cible.id, des: jet.des, nat, bonus, total, ca: cible.ca, touche, critique,
     avantage: av && !aTerre, desavantage: Boolean(aTerre) && !av });
   if (!touche) return;
-  let degats;
-  if (sort) {
-    degats = lancerDegats(sort.des, critique) + mod(st.caracs[sort.carac]) + st.sorts;
-  } else {
-    degats = lancerDegats(st.desArme, critique) + st.degats + b.degats + (desBonus ? lancerDegats(desBonus, critique) : 0);
-  }
-  infligerEnnemi(profil, course, salle, cible, degats, ev, sort ? "sort" : "arme");
+  const j = sort
+    ? jetDegats([sort.des], (sort.carac ? mod(st.caracs[sort.carac]) : 0) + st.sorts, critique)
+    : jetDegats([st.desArme, desBonus], st.degats + b.degats, critique);
+  infligerEnnemi(profil, course, salle, cible, j.total, ev, sort ? "sort" : "arme", j.detail);
   return true;
+}
+
+/**
+ * Lance des dés de dégâts plus un bonus fixe ; un critique double les dés (pas le bonus).
+ * Renvoie { total, detail } où detail montre chaque dé, ex. « 1d8 [5] + 1d6 [3] + 3 ».
+ */
+export function jetDegats(formules, bonus = 0, critique = false) {
+  let total = 0;
+  const morceaux = [];
+  for (const f of formules.filter(Boolean)) {
+    const des = String(f).replace(/\s+/g, "").match(/\d*d\d+/g) ?? [];
+    const r = lancer(f);
+    total += r.total;
+    morceaux.push(des.length === 1 ? `${des[0]} ${r.detail}` : r.detail);
+    // Critique : on relance les dés seulement, le bonus fixe ne compte qu'une fois.
+    if (critique) {
+      for (const de of des) {
+        const x = lancer(de);
+        total += x.total;
+        morceaux.push(`${de} ${x.detail}`);
+      }
+    }
+  }
+  total += bonus;
+  if (bonus) morceaux.push(String(bonus));
+  return { total, detail: morceaux.join(" + ").replace(/\+ -/g, "− ") };
 }
 
 function appliquerStatutEnnemi(cible, s, ev) {
@@ -614,7 +637,9 @@ function utiliserCompetence(profil, course, salle, st, id, cible, ev) {
       break;
     case "sort_auto":
       for (const e of cibles) {
-        infligerEnnemi(profil, course, salle, e, lancerDegats(c.des) + mod(st.caracs[c.carac]) + st.sorts, ev, "sort");
+        const j = jetDegats([c.des], (c.carac ? mod(st.caracs[c.carac]) : 0) + st.sorts);
+        ev.push({ type: "automatique", cible: e.id, texte: `${c.nom} touche automatiquement ${e.nom}.` });
+        infligerEnnemi(profil, course, salle, e, j.total, ev, "sort", j.detail);
         if (c.statut) appliquerStatutEnnemi(e, c.statut, ev);
       }
       break;
@@ -622,9 +647,9 @@ function utiliserCompetence(profil, course, salle, st, id, cible, ev) {
       for (const e of cibles) {
         const jet = d(20) + e.dex;
         const reussi = jet >= st.dd;
-        const degats = lancerDegats(c.des) + mod(st.caracs[c.carac]) + st.sorts;
+        const j = jetDegats([c.des], mod(st.caracs[c.carac]) + st.sorts);
         ev.push({ type: "sauvegarde", cible: e.id, total: jet, dd: st.dd, reussi });
-        infligerEnnemi(profil, course, salle, e, reussi ? degats / 2 : degats, ev, "sort");
+        infligerEnnemi(profil, course, salle, e, reussi ? j.total / 2 : j.total, ev, "sort", reussi ? `${j.detail}, divisé par 2` : j.detail);
       }
       break;
     case "soin": {
@@ -654,9 +679,17 @@ function attaqueEnnemi(course, salle, st, e, ev, { formule = e.degats, nomAttaqu
   const touche = nat !== 1 && (critique || nat + bonus >= ca);
   ev.push({ type: "jet", qui: e.id, cible: "heros", des: jet.des, nat, bonus, total: nat + bonus, ca, touche, critique, attaque: nomAttaque });
   if (!touche) return false;
-  let degats = lancerDegats(formule, critique) * e.mult * mult + (affaibli ? -2 : 0);
-  if (statut(salle.statuts, "garde") && nomAttaque === "Coup de massue") degats /= 2;
-  infligerHeros(course, degats, ev, e.id);
+  const j = jetDegats([formule], 0, critique);
+  const facteur = e.mult * mult;
+  let degats = j.total * facteur + (affaibli ? -2 : 0);
+  let detail = j.detail;
+  if (facteur !== 1) detail += ` × ${String(Math.round(facteur * 100) / 100).replace(".", ",")} (difficulté)`;
+  if (affaibli) detail += " − 2 (affaibli)";
+  if (statut(salle.statuts, "garde") && nomAttaque === "Coup de massue") {
+    degats /= 2;
+    detail += ", divisé par 2 (en garde)";
+  }
+  infligerHeros(course, degats, ev, e.id, detail);
   return true;
 }
 

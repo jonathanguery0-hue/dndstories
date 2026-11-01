@@ -378,3 +378,23 @@ test("chaque héros a des données complètes", () => {
     assert.ok(st.pvMax > 15 && st.ca >= 12 && st.competences.length >= 2);
   }
 });
+
+test("jetDegats : détail lisible, et un critique relance les dés sans doubler le bonus", () => {
+  const j = M.jetDegats(["1d6+1"], 2);
+  assert.match(j.detail, /^1d6 \[\d\] \+ 1 \+ 2$/);
+  for (let i = 0; i < 300; i++) {
+    const c = M.jetDegats(["1d6+1"], 0, true).total;
+    assert.ok(c >= 3 && c <= 13, `critique hors limites : ${c}`);
+    const a = M.jetDegats(["3d4"]).total;
+    assert.ok(a >= 3 && a <= 12);
+  }
+  assert.match(M.jetDegats(["1d6"], -1).detail, /− 1$/);
+});
+
+test("équilibrage : projectile magique coûte 2 PM et ne peut plus être enchaîné sans fin", () => {
+  const p = M.creerProfil();
+  const c = M.nouvelleCourse(p, "mage", "normal");
+  M.entrerSalle(p, c, "0-0");
+  c.pm = 1;
+  assert.throws(() => M.jouerAction(p, c, { type: "competence", id: "projectile_magique" }), /PM/);
+});

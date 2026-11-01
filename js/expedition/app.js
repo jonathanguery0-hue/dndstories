@@ -1092,6 +1092,9 @@ async function jouerEvenements(evs) {
         }
         break;
       }
+      case "automatique":
+        ajouterJournal(`✨ ${ev.texte} (pas de jet d'attaque)`, "heros");
+        break;
       case "sauvegarde":
         ajouterJournal(`🎲 ${nom(ev.cible)} : sauvegarde ${ev.total} contre DD ${ev.dd} — ${ev.reussi ? "moitié des dégâts" : "plein fouet"}`);
         break;
@@ -1100,10 +1103,11 @@ async function jouerEvenements(evs) {
         flottant(scene, ev.cible, `-${ev.montant}`, "degats");
         son(ev.cible === "heros" ? "aie" : "coup");
         if (ev.cible === "heros") {
-          ajouterJournal(`💥 Tu perds ${ev.montant} PV.`, "ennemi");
+          ajouterJournal(`💥 Tu perds ${ev.montant} PV${ev.detail ? ` (${ev.detail})` : ""}.`, "ennemi");
           majStatut();
         } else {
-          ajouterJournal(`💥 ${nom(ev.cible)} perd ${ev.montant} PV${ev.source === "poison" ? " (poison)" : ev.source === "aura" ? " (esprits)" : ""}.`, "heros");
+          const pourquoi = ev.detail ?? (ev.source === "poison" ? "poison" : ev.source === "aura" ? "esprits" : "");
+          ajouterJournal(`💥 ${nom(ev.cible)} perd ${ev.montant} PV${pourquoi ? ` (${pourquoi})` : ""}.`, "heros");
           placerEtiquettes();
         }
         await pause(300);
