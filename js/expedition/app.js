@@ -3,6 +3,7 @@
 import * as M from "./moteur.js";
 import { COMPETENCES, DIFFICULTES, ENNEMIS, EVENEMENTS, FORGE, HEROS, NB_ETAGES, NIVEAU_MAX, OBJETS, ORDRE_HEROS, RELIQUES, TYPES_SALLES, xpPourNiveau } from "./donnees.js";
 import * as S from "./sauvegarde.js";
+import * as C from "./compte.js";
 import { creerNarrateur, iaDisponible } from "./narrateur.js";
 import { dessinerCamp, dessinerDonjon, dessinerSprite, spriteCanvas } from "./sprites.js";
 
@@ -43,13 +44,215 @@ const attendre = (ms) => new Promise((r) => setTimeout(r, ms));
 const VITESSES = { lente: 1.6, normale: 1, rapide: 0.5 };
 const pause = (ms) => attendre(ms * (VITESSES[reglages.vitesse] ?? 1));
 
+/** Empreinte du contenu sauvegardé (sans la date) : sert à savoir si quelque chose a vraiment changé. */
+function empreinteSauvegarde() {
+  const { maj_le: _date, ...reste } = profil;
+  return JSON.stringify([reste, course && !course.bilan ? course : null]);
+}
+let derniereEmpreinte = null;
+
 function sauver() {
-  S.enregistrerProfil(profil);
-  if (course && !course.bilan) {
-    course.memoire = narrateur.souvenirs;
-    S.enregistrerCourse(course);
+  if (course && !course.bilan) course.memoire = narrateur.souvenirs;
+  const empreinte = empreinteSauvegarde();
+  if (empreinte !== derniereEmpreinte) {
+    if (derniereEmpreinte !== null) profil.maj_le = Date.now();
+    derniereEmpreinte = empreinte;
+    planifierEnvoi();
   }
+  S.enregistrerProfil(profil);
+  if (course && !course.bilan) S.enregistrerCourse(course);
   $("#or-profil").textContent = `💰 ${profil.or}`;
+}
+
+// ================================================================== compte : synchronisation entre appareils
+
+let minuterieEnvoi = 0;
+let envoiEnCours = null;
+
+const donneesASynchroniser = () => ({ profil, course: course && !course.bilan ? course : null });
+
+function planifierEnvoi() {
+  if (!C.compteActuel()) return;
+  clearTimeout(minuterieEnvoi);
+  minuterieEnvoi = setTimeout(() => envoyerMaintenant(), 2500);
+}
+
+/** Envoie la progression au compte ; en cas de conflit, garde la plus récente des deux. */
+async function envoyerMaintenant({ keepalive = false, essai = 0 } = {}) {
+  clearTimeout(minuterieEnvoi);
+  if (!C.compteActuel()) return;
+  if (envoiEnCours && !keepalive) {
+    await envoiEnCours;
+    return envoyerMaintenant({ keepalive, essai });
+  }
+  let encore = false;
+  const tache = (async () => {
+    try {
+      await C.envoyer(donneesASynchroniser(), profil.maj_le ?? Date.now(), { keepalive });
+      majBoutonCompte();
+    } catch (e) {
+      if (e.code === "conflit" && e.donnees?.sauvegarde) {
+        const srv = e.donnees.sauvegarde;
+        if ((srv.maj_le ?? 0) > (profil.maj_le ?? 0)) {
+          adopter(srv, "☁️ Une partie plus récente a été jouée sur un autre appareil : elle est chargée.");
+        } else if (essai < 2) {
+          C.majCompte({ version: srv.version });
+          encore = true;
+        }
+      } else if (e.code === "non_connecte") {
+        toast("Session expirée : reconnecte-toi avec le bouton 👤.", "erreur");
+      }
+      majBoutonCompte(e.code === "hors_ligne" ? "hors ligne" : null);
+    }
+  })();
+  envoiEnCours = tache;
+  await tache;
+  if (envoiEnCours === tache) envoiEnCours = null;
+  if (encore) await envoyerMaintenant({ keepalive, essai: essai + 1 });
+}
+
+/** Remplace la progression de cet appareil par celle du compte. */
+function adopter(srv, message) {
+  const donnees = srv.donnees ?? {};
+  profil = M.normaliserProfil(donnees.profil);
+  profil.maj_le = srv.maj_le;
+  course = donnees.course?.carte && !donnees.course.bilan ? donnees.course : null;
+  if (!course) S.effacerCourse();
+  C.majCompte({ version: srv.version, synchro_le: Date.now() });
+  narrateur = creerNarrateur({ actif: reglages.mj_ia, memoire: course?.memoire ?? [] });
+  herosChoisi = profil.debloques.includes(profil.dernier_heros) ? profil.dernier_heros : "guerrier";
+  diffChoisie = profil.difficultes.includes(profil.difficulte) ? profil.difficulte : "normal";
+  derniereEmpreinte = empreinteSauvegarde();
+  S.enregistrerProfil(profil);
+  if (course) S.enregistrerCourse(course);
+  $("#or-profil").textContent = `💰 ${profil.or}`;
+  if (message) toast(message, "or");
+  majBoutonCompte();
+  fermerModale();
+  rendre();
+}
+
+/** Au démarrage (et au retour sur l'onglet) : récupère la partie du compte si elle est plus récente. */
+async function synchroniser() {
+  if (!C.compteActuel() || occupe) return;
+  try {
+    const srv = await C.telecharger();
+    if (occupe) return;
+    if (srv && (srv.maj_le ?? 0) > (profil.maj_le ?? 0)) adopter(srv, "☁️ Progression récupérée depuis ton compte.");
+    else if (!srv || (profil.maj_le ?? 0) > (srv.maj_le ?? 0)) await envoyerMaintenant();
+    majBoutonCompte();
+  } catch (e) {
+    if (e.code === "non_connecte") toast("Session expirée : reconnecte-toi avec le bouton 👤.", "erreur");
+    majBoutonCompte(e.code === "hors_ligne" ? "hors ligne" : null);
+  }
+}
+
+function majBoutonCompte(etat = null) {
+  const b = $("#ouvrir-compte");
+  if (!b) return;
+  const c = C.compteActuel();
+  b.replaceChildren("👤", h("span", { class: "nom-compte" }, c ? ` ${c.nom}` : " Connexion"));
+  b.classList.toggle("connecte", Boolean(c));
+  b.title = c ? `Connecté : ${c.nom}${etat ? ` (${etat})` : c.synchro_le ? " — progression synchronisée" : ""}` : "Se connecter pour retrouver sa progression partout";
+  b.classList.toggle("hors-ligne", etat === "hors ligne");
+}
+
+function ouvrirCompte() {
+  if (!C.comptesPossibles()) {
+    ouvrirModale(
+      h("h2", {}, "👤 Comptes joueurs"),
+      h("p", {}, "Les comptes passent par le serveur du jeu, qui n'est pas joignable depuis cette adresse."),
+      h("p", {}, "👉 Ouvre le jeu depuis ton adresse Vercel (elle ressemble à ", h("b", {}, "https://dndstories….vercel.app/expedition.html"),
+        ") : tu la trouves sur vercel.com, dans ton projet dndstories, bouton « Visit »."),
+      h("p", { class: "discret" }, "En attendant, ta progression est enregistrée dans ce navigateur, et tu peux l'exporter dans ⚙️ Réglages."));
+    return;
+  }
+  const c = C.compteActuel();
+  if (c) {
+    const quand = c.synchro_le ? new Date(c.synchro_le).toLocaleString("fr-FR", { dateStyle: "short", timeStyle: "short" }) : "pas encore";
+    ouvrirModale(
+      h("h2", {}, `👤 Compte : ${c.nom}`),
+      h("p", {}, "Ta progression (héros, niveaux, or, équipement et expédition en cours) est enregistrée sur ton compte. "
+        + "Connecte-toi avec le même nom sur la Tesla, ton téléphone ou ton ordinateur pour la retrouver."),
+      h("p", { class: "discret" }, `Dernière synchronisation : ${quand}.`),
+      h("div", { class: "rangee" },
+        h("button", { class: "bouton principal", onclick: async () => {
+          await envoyerMaintenant();
+          await synchroniser();
+          toast("☁️ Progression synchronisée.");
+          if (!$("#modale").classList.contains("cache")) ouvrirCompte();
+        } }, "🔄 Synchroniser maintenant"),
+        h("button", { class: "bouton danger", onclick: async () => {
+          await envoyerMaintenant();
+          await C.deconnecter();
+          majBoutonCompte();
+          fermerModale();
+          toast("Déconnecté. Ta progression reste aussi sur cet appareil.");
+        } }, "🚪 Se déconnecter")));
+    return;
+  }
+  const nom = h("input", { type: "text", autocomplete: "username", autocapitalize: "none", spellcheck: "false", maxlength: "24", placeholder: "ex. jonathan" });
+  const mdp = h("input", { type: "password", autocomplete: "current-password", maxlength: "128", placeholder: "6 caractères minimum" });
+  const voir = h("label", { class: "interrupteur" }, h("input", { type: "checkbox", onchange: (e) => { mdp.type = e.target.checked ? "text" : "password"; } }), "Afficher le mot de passe");
+  const erreurTxt = h("p", { class: "erreur" });
+  const boutons = [];
+  const valider = async (action) => {
+    erreurTxt.textContent = "";
+    boutons.forEach((b) => { b.disabled = true; });
+    try {
+      const r = await C.entrer(action, nom.value, mdp.value);
+      await apresConnexion(r, action);
+    } catch (e) {
+      erreurTxt.textContent = e.message;
+      boutons.forEach((b) => { b.disabled = false; });
+    }
+  };
+  boutons.push(
+    h("button", { class: "bouton principal", onclick: () => valider("connexion") }, "🔑 Se connecter"),
+    h("button", { class: "bouton", onclick: () => valider("inscription") }, "✨ Créer un compte"));
+  mdp.addEventListener("keydown", (e) => { if (e.key === "Enter") valider("connexion"); });
+  ouvrirModale(
+    h("h2", {}, "👤 Retrouver ta progression partout"),
+    h("p", {}, "Crée un compte une fois (un nom et un mot de passe), puis connecte-toi avec les mêmes identifiants sur "
+      + "chaque appareil : la Tesla, ton téléphone, ton ordinateur… Tes héros, ton or et ton expédition en cours te suivent."),
+    h("div", { class: "champ" }, h("label", {}, "Nom de compte"), nom),
+    h("div", { class: "champ" }, h("label", {}, "Mot de passe"), mdp),
+    voir,
+    erreurTxt,
+    h("div", { class: "rangee" }, boutons),
+    h("p", { class: "discret" }, "🔒 Le mot de passe est protégé (haché) sur le serveur du jeu, jamais enregistré en clair. "
+      + "Choisis-en un que tu n'utilises nulle part ailleurs."));
+  setTimeout(() => nom.focus(), 50);
+}
+
+async function apresConnexion(r, action) {
+  const srv = r.sauvegarde;
+  majBoutonCompte();
+  if (!srv) {
+    await envoyerMaintenant();
+    fermerModale();
+    toast(action === "inscription" ? "✨ Compte créé ! Ta progression est enregistrée dessus." : "☁️ Connecté : ta progression est enregistrée sur ton compte.", "or");
+    return;
+  }
+  const profilCompte = M.normaliserProfil(srv.donnees?.profil);
+  if (C.profilVierge(profil)) {
+    adopter(srv, `☁️ Bon retour, ${r.nom} ! Ta progression est chargée.`);
+    return;
+  }
+  // Les deux ont de la progression : on demande laquelle garder.
+  ouvrirModale(
+    h("h2", {}, "Quelle progression garder ?"),
+    h("p", {}, "Ce compte et cet appareil ont chacun une progression différente."),
+    h("div", { class: "choix" },
+      h("button", { class: "bouton principal", onclick: () => adopter(srv, "☁️ Progression du compte chargée.") },
+        "☁️ Celle du compte", h("span", { class: "sous" }, C.resumeProfil(profilCompte))),
+      h("button", { class: "bouton", onclick: async () => {
+        C.majCompte({ version: srv.version });
+        await envoyerMaintenant();
+        fermerModale();
+        toast("📱 Progression de cet appareil enregistrée sur ton compte.", "or");
+      } }, "📱 Celle de cet appareil", h("span", { class: "sous" }, C.resumeProfil(profil)))),
+    h("p", { class: "discret" }, "L'autre progression sera remplacée."));
 }
 
 function toast(texte, genre = "") {
@@ -224,6 +427,9 @@ function flottant(sc, id, texte, genre) {
   const r = sc.rect(a);
   const f = h("div", { class: `flottant ${genre}`, style: `left:${r.cx}px; top:${Math.max(4, r.y + r.h * 0.15)}px` }, texte);
   sc.conteneur.append(f);
+  // Le texte reste entièrement dans la scène, même au-dessus d'un personnage collé au bord.
+  const demi = f.offsetWidth / 2;
+  f.style.left = `${Math.min(Math.max(r.cx, demi + 4), sc.conteneur.clientWidth - demi - 4)}px`;
   setTimeout(() => f.remove(), 1150);
 }
 
@@ -246,16 +452,17 @@ function barreStatut() {
   const objets = Object.entries(course.objets).filter(([, n]) => n > 0);
   return h("div", { class: "statut-course", id: "statut" },
     spriteCanvas(course.heros, 3),
-    h("div", { class: "info-course" }, `${st.nom} · niv ${st.niveau}`),
+    h("div", { class: "info-course nom-statut" }, `${st.nom} · niv ${st.niveau}`),
     jauge("❤️ PV", course.pv, st.pvMax),
     jauge("🔷 PM", course.pm, st.pmMax, "pm"),
+    h("div", { class: "details-statut" },
     h("span", { class: "info-course", title: "Classe d'armure" }, `🛡️ ${M.caHeros(st, salle?.type === "combat" ? salle : null)}`),
     h("span", { class: "info-course", title: "Or trouvé pendant l'expédition" }, `💰 ${course.or}`),
     objets.length ? h("span", { class: "info-course", title: "Objets" }, objets.map(([id, n]) => `${OBJETS[id].icone}${n}`).join(" ")) : null,
     statuts.length ? h("span", { class: "info-course" }, statuts.map((s) => h("span", { title: s.nom ?? NOMS_STATUTS[s.id] ?? s.id }, COMPETENCES[s.id]?.icone ?? ICONES_STATUTS[s.id] ?? "✨"))) : null,
     course.reliques.length ? h("div", { class: "reliques" }, course.reliques.map((r) => h("span", {
       class: "relique", title: `${RELIQUES[r].nom} : ${RELIQUES[r].desc}`, onclick: () => toast(`${RELIQUES[r].icone} ${RELIQUES[r].nom} : ${RELIQUES[r].desc}`),
-    }, RELIQUES[r].icone))) : null,
+    }, RELIQUES[r].icone))) : null),
   );
 }
 
@@ -416,7 +623,7 @@ async function partir() {
   if (course && !course.bilan) return;
   son("clic");
   try {
-    course = M.nouvelleCourse(profil, herosChoisi, diffChoisie);
+    course = M.nouvelleCourse(profil, herosChoisi, diffChoisie, { karma: reglages.karma });
   } catch (e) {
     toast(e.message, "erreur");
     return;
@@ -452,6 +659,8 @@ function afficherCarte(depart = false) {
   jeu.append(h("div", { class: "legende" }, Object.entries(TYPES_SALLES).map(([, t]) => h("span", {}, `${t.icone} ${t.nom}`)),
     h("button", { class: "bouton petit", style: "margin-left:auto", onclick: () => afficherCamp() }, "🏕️ Voir le camp")));
   dessinerCarte(conteneur, accessibles);
+  const prochaine = conteneur.querySelector(".noeud.accessible");
+  if (prochaine && conteneur.clientWidth < 640 && course.visitees.length) prochaine.scrollIntoView({ block: "center" });
   const redessiner = () => { if (conteneur.isConnected) dessinerCarte(conteneur, M.sallesAccessibles(course)); };
   window.onresize = redessiner;
 }
@@ -469,7 +678,7 @@ function dessinerCarte(conteneur, accessibles) {
     const b = (s.col + 0.5) / s.n;
     return horizontal
       ? { x: marge + a * (L - 2 * marge), y: marge + b * (H - 2 * marge) }
-      : { x: marge + b * (L - 2 * marge), y: H - marge - a * (H - 2 * marge) };
+      : { x: marge + b * (L - 2 * marge), y: marge + a * (H - 2 * marge) };
   };
   const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
   svg.setAttribute("width", L);
@@ -550,7 +759,7 @@ function salleEvenement(recit, zone) {
     if (!salle.resultat) {
       zone.append(h("div", { class: "choix" }, ev.choix.map((c, i) => {
         const bonus = c.test ? M.mod(st.caracs[c.test.carac]) + (c.test.carac === st.principale ? st.maitrise : 0) : 0;
-        const chance = c.test ? Math.round(100 * Math.min(0.95, Math.max(0.05, (21 - (c.test.dd - bonus)) / 20))) : null;
+        const chance = c.test ? Math.round(100 * M.chanceReussite(bonus, c.test.dd, { avantage: M.karmaActif(course) })) : null;
         return h("button", {
           class: "bouton", disabled: Boolean(c.cout && course.or < c.cout),
           onclick: () => choisir(i),
@@ -560,7 +769,7 @@ function salleEvenement(recit, zone) {
     }
     const r = salle.resultat;
     const res = h("div", { class: "resultat" });
-    if (r.jet) res.append(h("p", { class: "jet-texte" }, `🎲 ${r.jet.carac} : d20 ${r.jet.nat} ${r.jet.bonus >= 0 ? "+" : ""}${r.jet.bonus} = ${r.jet.total} contre DD ${r.jet.dd} — ${r.jet.reussi ? "réussite !" : "échec"}`));
+    if (r.jet) res.append(h("p", { class: "jet-texte" }, `🎲 ${r.jet.carac} : d20 ${r.jet.des?.length > 1 ? `[${r.jet.des.join(", ")}]→` : ""}${r.jet.nat} ${r.jet.bonus >= 0 ? "+" : ""}${r.jet.bonus} = ${r.jet.total} contre DD ${r.jet.dd} — ${r.jet.reussi ? "réussite !" : "échec"}`));
     const p = h("p", {}, r.texte);
     res.append(p);
     if (r.effets.length) res.append(h("div", { class: "effets" }, r.effets.map((e) => h("span", { class: "puce" }, e))));
@@ -711,6 +920,8 @@ function afficherCombat() {
   const type = salle.genre === "boss" ? "boss" : salle.genre === "elite" ? "elite" : "combat";
   raconter(recit, "recit", type, { ennemis: noms, etage: (salle.etage ?? 0) + 1 });
   setTimeout(placerEtiquettes, 30);
+  // La police pixel change la largeur des noms : on replace les étiquettes une fois qu'elle est chargée.
+  document.fonts?.ready.then(() => placerEtiquettes());
   dessinerActions();
 }
 
@@ -744,13 +955,19 @@ function placerEtiquettes() {
       class: `cible-ennemi ${e.id === cibleId ? "vise" : ""} ${e.mort ? "mort" : ""}`,
       style: `left:${r.cx}px; top:${Math.max(0, r.y - 58)}px`, "data-id": e.id,
       "aria-label": `Viser ${e.nom}, ${e.pv} PV sur ${e.pvMax}`,
-      onclick: () => { if (e.mort) return; cibleId = e.id; son("clic"); placerEtiquettes(); },
+      onclick: () => { if (e.mort) return; cibleId = e.id; son("clic"); placerEtiquettes(); if (!occupe) dessinerActions(); },
     },
     h("span", { class: "nom-ennemi" }, e.nom),
     h("span", { class: "pv-ennemi" }, h("span", { style: `width:${(100 * e.pv) / e.pvMax}%` })),
     h("span", { class: "etats" }, etats),
     h("span", { class: "zone", style: `width:${r.l}px; height:${r.h}px` }));
     scene.conteneur.append(b);
+    const demi = b.offsetWidth / 2;
+    const gauche = Math.min(Math.max(r.cx, demi + 2), scene.conteneur.clientWidth - demi - 2);
+    if (gauche !== r.cx) {
+      b.style.left = `${gauche}px`;
+      b.querySelector(".zone").style.transform = `translateX(${r.cx - gauche}px)`;
+    }
   }
 }
 
@@ -762,6 +979,8 @@ function ajouterJournal(texte, genre = "", memoriser = true) {
     salle.journal = [...(salle.journal ?? []), { texte, genre }].slice(-30);
   }
 }
+
+const pourcent = (p) => (p == null ? "" : `${Math.round(p * 100)} %`);
 
 function dessinerActions() {
   const zone = $("#actions");
@@ -776,7 +995,10 @@ function dessinerActions() {
         class: "bouton", disabled: occupe || !c.possible, title: c.desc,
         onclick: () => agir({ type: "competence", id: c.id, cible: cibleId }),
       }, h("span", { class: "icone" }, c.icone), h("span", { class: "txt" }, c.nom, h("span", { class: "sous" }, c.raison ?? c.desc)),
-      h("span", { class: "cout" }, c.cout ? `${c.cout} PM` : c.par_combat ? "1×/combat" : ""))),
+      h("span", { class: "cout" }, c.cout ? `${c.cout} PM` : c.par_combat ? "1×/combat" : "",
+        c.type === "attaque" || c.type === "sort_attaque"
+          ? h("small", { class: "chance" }, pourcent(M.chanceToucher(profil, course, cibleId, { sort: c.type === "sort_attaque", avantage: c.avantage })))
+          : c.type === "sort_auto" ? h("small", { class: "chance" }, "100 %") : null))),
       h("button", { class: "bouton", onclick: () => { modeActions = "principal"; dessinerActions(); } }, "↩️ Retour")));
     return;
   }
@@ -792,7 +1014,8 @@ function dessinerActions() {
   const nbComp = dispo.competences.filter((c) => c.possible).length;
   zone.append(h("div", { class: "actions" },
     h("button", { class: "bouton danger", disabled: occupe, onclick: () => agir({ type: "attaque", cible: cibleId }) },
-      h("span", { class: "icone" }, "⚔️"), "Attaquer", h("span", { class: "sous" }, `${st.arme} · +${st.att}`)),
+      h("span", { class: "icone" }, "⚔️"), "Attaquer", h("span", { class: "sous" }, st.arme),
+      h("span", { class: "chance-bouton", title: "Chance de toucher la cible visée" }, `${pourcent(M.chanceToucher(profil, course, cibleId))}${M.karmaActif(course) ? " 🍀" : ""}`)),
     h("button", { class: "bouton bleu", disabled: occupe, onclick: () => { son("clic"); modeActions = "competences"; dessinerActions(); } },
       h("span", { class: "icone" }, "✨"), "Compétences", h("span", { class: "sous" }, `${nbComp} disponible${nbComp > 1 ? "s" : ""} · ${course.pm} PM`)),
     h("button", { class: "bouton", disabled: occupe || !dispo.objets.length, onclick: () => { son("clic"); modeActions = "objets"; dessinerActions(); } },
@@ -864,6 +1087,7 @@ async function jouerEvenements(evs) {
       case "jet": {
         const genre = ev.critique ? "crit" : ev.nat === 1 ? "fumble" : ev.qui === "heros" ? "" : "ennemi";
         await animerDe(scene, ev.nat, genre, `${ev.total} vs CA ${ev.ca}`);
+        if (ev.karma) ajouterJournal("🍀 Dé karmique : après 2 échecs, tu lances deux d20 et gardes le meilleur.", "bon");
         ajouterJournal(`🎲 ${M.descriptionJet(ev, nom(ev.qui))}`, ev.qui === "heros" ? "heros" : "ennemi");
         if (!ev.touche) {
           flottant(scene, ev.cible, "Raté !", "rate");
@@ -875,6 +1099,9 @@ async function jouerEvenements(evs) {
         }
         break;
       }
+      case "automatique":
+        ajouterJournal(`✨ ${ev.texte} (pas de jet d'attaque)`, "heros");
+        break;
       case "sauvegarde":
         ajouterJournal(`🎲 ${nom(ev.cible)} : sauvegarde ${ev.total} contre DD ${ev.dd} — ${ev.reussi ? "moitié des dégâts" : "plein fouet"}`);
         break;
@@ -883,10 +1110,11 @@ async function jouerEvenements(evs) {
         flottant(scene, ev.cible, `-${ev.montant}`, "degats");
         son(ev.cible === "heros" ? "aie" : "coup");
         if (ev.cible === "heros") {
-          ajouterJournal(`💥 Tu perds ${ev.montant} PV.`, "ennemi");
+          ajouterJournal(`💥 Tu perds ${ev.montant} PV${ev.detail ? ` (${ev.detail})` : ""}.`, "ennemi");
           majStatut();
         } else {
-          ajouterJournal(`💥 ${nom(ev.cible)} perd ${ev.montant} PV${ev.source === "poison" ? " (poison)" : ev.source === "aura" ? " (esprits)" : ""}.`, "heros");
+          const pourquoi = ev.detail ?? (ev.source === "poison" ? "poison" : ev.source === "aura" ? "esprits" : "");
+          ajouterJournal(`💥 ${nom(ev.cible)} perd ${ev.montant} PV${pourquoi ? ` (${pourquoi})` : ""}.`, "heros");
           placerEtiquettes();
         }
         await pause(300);
@@ -1208,6 +1436,7 @@ function ouvrirReglages() {
       ? "✅ L'IA est prête : elle utilise la connexion réglée dans Contes & Dragons."
       : "⚠️ Aucune IA configurée : le jeu utilise des récits écrits à l'avance. ",
       ia ? null : h("a", { href: "index.html" }, "Configurer l'IA dans Contes & Dragons ⚙️")),
+    coche("karma", "🍀 Dé karmique : avantage après 2 échecs d'affilée", () => { if (course && !course.bilan) { course.karma = reglages.karma; sauver(); } }),
     coche("son", "🔊 Effets sonores"),
     h("div", { class: "champ" }, h("label", {}, "⏩ Vitesse des animations"), vitesse),
     h("h3", {}, "💾 Sauvegarde"),
@@ -1237,8 +1466,16 @@ function exporterSauvegarde() {
 }
 
 $("#ouvrir-reglages").addEventListener("click", ouvrirReglages);
+$("#ouvrir-compte").addEventListener("click", () => { son("clic"); ouvrirCompte(); });
+document.addEventListener("visibilitychange", () => {
+  if (document.visibilityState === "hidden") envoyerMaintenant({ keepalive: true });
+  else synchroniser();
+});
 
 // Garde l'ennemi visé et les étiquettes bien placés si l'écran change de taille (rotation…).
 window.addEventListener("orientationchange", () => setTimeout(() => placerEtiquettes(), 300));
 
+derniereEmpreinte = empreinteSauvegarde();
+majBoutonCompte();
 rendre();
+synchroniser();

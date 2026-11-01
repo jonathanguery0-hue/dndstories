@@ -8,7 +8,7 @@ const CLE_PROFIL = `${PREFIXE}profil`;
 const CLE_COURSE = `${PREFIXE}course`;
 const CLE_REGLAGES = `${PREFIXE}reglages`;
 
-export const REGLAGES_DEFAUT = { mj_ia: true, son: true, vitesse: "normale" };
+export const REGLAGES_DEFAUT = { mj_ia: true, son: true, vitesse: "normale", karma: true };
 
 function lire(cle) {
   try {

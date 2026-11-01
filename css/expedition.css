@@ -296,3 +296,101 @@ select { font-size: 1.05rem; min-height: 48px; background: var(--fond-2); color:
 }
 
 .emplacement .bouton, .etal .bouton .txt { flex-direction: column; gap: 0; }
+
+.bouton-compte {
+  font-family: var(--pixel); font-size: 1.2rem; color: var(--texte); background: var(--carte-2); border: 2px solid #000;
+  border-radius: 6px; min-height: 44px; padding: 0 .7rem; cursor: pointer; max-width: 11rem; overflow: hidden;
+  text-overflow: ellipsis; white-space: nowrap;
+}
+.bouton-compte.hors-ligne { opacity: .6; }
+@media (max-width: 560px) { .bouton-compte { max-width: 7rem; font-size: 1.05rem; } }
+.champ input { font-size: 1.1rem; min-height: 52px; background: var(--fond-2); color: var(--texte); border: 2px solid #000; border-radius: 6px; padding: 0 .8rem; }
+
+/* ------------------------------------------------------------ téléphone */
+.details-statut { display: contents; }
+.journal-combat:empty { display: none; }
+.bouton-compte.connecte { box-shadow: inset 0 0 0 2px var(--vert); }
+
+@media (max-width: 560px) {
+  body { font-size: 17px; }
+  .barre { padding: .3rem .6rem; gap: .4rem; }
+  .titre-jeu { flex: 1; min-width: 0; font-size: 1.3rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .titre-jeu .long { display: none; }
+  .barre-droite { gap: .35rem; }
+  .or-profil { font-size: 1.25rem; }
+  .bouton-compte { padding: 0 .55rem; font-size: 1.15rem; }
+  .bouton-compte .nom-compte { display: none; }
+  .bouton-icone { min-width: 44px; min-height: 44px; font-size: 1.35rem; }
+  #jeu { padding: .5rem .6rem 1rem; gap: .55rem; }
+  .panneau { padding: .75rem; }
+  h2 { font-size: 1.55rem; }
+
+  /* Camp */
+  .camp-scene { height: 150px; min-height: 0; }
+  .camp-scene .titre-scene h1 { font-size: 1.9rem; }
+  .camp-scene .titre-scene p { font-size: .8rem; padding: 0 .5rem; }
+  .carte-heros { min-height: 0; padding: .35rem; }
+  .carte-heros canvas { width: 52px; height: 52px; }
+  .fiche-heros { grid-template-columns: 1fr; }
+  .fiche-heros > canvas { display: none; }
+  .stats { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: .25rem; }
+  .stat { padding: .15rem .2rem; }
+  .stat b { font-size: 1.2rem; }
+  .stat small { font-size: .68rem; line-height: 1.15; display: block; }
+  .pnj { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .4rem; }
+  .pnj .bouton { min-height: 70px; font-size: 1.2rem; padding: .4rem; }
+  .pnj .bouton .icone { font-size: 1.4rem; }
+
+  /* Bandeau PV / PM : deux lignes compactes */
+  .statut-course { display: grid; grid-template-columns: auto minmax(0, 1fr) minmax(0, 1fr); gap: .25rem .6rem; padding: .35rem .55rem; align-items: center; }
+  .statut-course > canvas { grid-row: span 2; width: 36px; height: 36px; }
+  .statut-course .nom-statut { display: none; }
+  .statut-course .jauge { min-width: 0; max-width: none; }
+  .jauge .etiquette { font-size: 1.05rem; }
+  .jauge .fond { height: 10px; }
+  .details-statut { grid-column: 2 / 4; display: flex; flex-wrap: wrap; gap: .2rem .7rem; align-items: center; }
+  .info-course { font-size: 1.1rem; }
+  .relique { font-size: 1.05rem; }
+
+  /* Combat : la scène, un récit court et les boutons toujours visibles en bas */
+  .scene { height: clamp(170px, 28vh, 250px); }
+  .recit { padding: .45rem .7rem; font-size: .98rem; min-height: 0; line-height: 1.35; }
+  .recit .qui { font-size: 1rem; }
+  .journal-combat { max-height: 68px; font-size: .84rem; padding: .3rem .6rem; }
+  .cible-ennemi .nom-ennemi { font-size: 1rem; }
+  .cible-ennemi .pv-ennemi { width: 64px; }
+  #actions { position: sticky; bottom: 0; z-index: 15; margin: 0 -.6rem; padding: .9rem .6rem calc(.5rem + env(safe-area-inset-bottom));
+    background: linear-gradient(to bottom, rgba(20, 16, 25, 0), var(--fond) .9rem); }
+  .actions { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: .35rem; }
+  .actions .bouton { min-height: 64px; font-size: 1.15rem; padding: .3rem .15rem; }
+  .actions .bouton .icone { font-size: 1.45rem; }
+  .actions .bouton .sous { display: none; }
+  .sous-actions { grid-template-columns: 1fr; gap: .35rem; max-height: 52vh; overflow-y: auto; }
+  .sous-actions .bouton { min-height: 58px; padding: .35rem .6rem; }
+  .sous-actions .bouton .icone { font-size: 1.5rem; }
+  .bandeau-victoire { font-size: 2.4rem; }
+  .actions .bouton { font-size: clamp(.95rem, 4.1vw, 1.15rem); letter-spacing: 0; }
+  .cible-ennemi .nom-ennemi { white-space: normal; max-width: 110px; text-align: center; line-height: 1; }
+  .camp-scene .titre-scene p { display: none; }
+  .flottant { font-size: 1.9rem; }
+  .flottant.crit { font-size: 2.1rem; }
+  .de20 { top: 6px; width: 54px; height: 54px; font-size: 1.8rem; border-width: 3px; }
+  .de20 small { bottom: auto; top: 50%; left: 100%; transform: translateY(-50%); margin-left: .4rem; font-size: 1rem; }
+
+  /* Salles, boutique, carte */
+  .choix { grid-template-columns: 1fr; gap: .45rem; }
+  .choix .bouton { min-height: 62px; }
+  .etal { grid-template-columns: 1fr; gap: .4rem; }
+  .article { min-height: 64px; }
+  .carte-repaire { min-height: 0; }
+  .noeud { width: 54px; height: 54px; font-size: 1.5rem; }
+  .noeud.boss { width: 70px; height: 70px; font-size: 2rem; }
+  .modale { padding: .5rem; }
+  .modale-boite { padding: .9rem; max-height: calc(100dvh - 1rem); }
+  .arbre { gap: .45rem; }
+  .talent { min-height: 62px; }
+}
+
+.sous-actions .bouton .cout { display: flex; flex-direction: column; align-items: flex-end; }
+.sous-actions .bouton .cout .chance { color: var(--vert); font-size: 1rem; }
+.actions .bouton .chance-bouton { font-family: var(--texte-police); font-size: .82rem; font-weight: 700; color: #ffe9a8; line-height: 1; }

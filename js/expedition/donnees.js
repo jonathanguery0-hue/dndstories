@@ -40,17 +40,17 @@ export const COMPETENCES = {
   cri_de_guerre: { nom: "Cri de guerre", icone: "📯", type: "buff", cible: "soi", cout: 2, duree: 3,
     effet: { att: 2, degats: 2 }, desc: "+2 à l'attaque et aux dégâts pendant 3 tours." },
   // Mage
-  projectile_magique: { nom: "Projectile magique", icone: "✨", type: "sort_auto", cible: "ennemi", cout: 1, des: "3d4", carac: "INT",
-    desc: "Trois fléchettes de force qui touchent toujours : 3d4 + INT." },
+  projectile_magique: { nom: "Projectile magique", icone: "✨", type: "sort_auto", cible: "ennemi", cout: 2, des: "3d4",
+    desc: "Trois fléchettes de force qui touchent toujours (pas de jet d'attaque) : 3d4." },
   rayon_de_givre: { nom: "Rayon de givre", icone: "❄️", type: "sort_attaque", cible: "ennemi", cout: 2, des: "2d8", carac: "INT",
     statut: { id: "affaibli", duree: 2 }, desc: "2d8 + INT de froid ; la cible est affaiblie (−2 attaque et dégâts) 2 tours." },
   boule_de_feu: { nom: "Boule de feu", icone: "🔥", type: "sort_zone", cible: "tous", cout: 4, des: "3d6", carac: "INT",
     desc: "Explosion sur tous les ennemis : 3d6 + INT (moitié si sauvegarde DEX réussie)." },
-  armure_de_mage: { nom: "Armure de mage", icone: "🔮", type: "buff", cible: "soi", cout: 1, duree: 5, effet: { ca: 3 },
-    desc: "+3 CA pendant 5 tours." },
+  armure_de_mage: { nom: "Armure de mage", icone: "🔮", type: "buff", cible: "soi", cout: 1, duree: 99, effet: { ca: 3 },
+    desc: "+3 CA jusqu'à la fin du combat." },
   // Roublard
-  attaque_sournoise: { nom: "Attaque sournoise", icone: "🗡️", type: "attaque", cible: "ennemi", cout: 2, des_bonus: "2d6", avantage: true,
-    desc: "Attaque avec avantage (deux d20, on garde le meilleur) et +2d6 dégâts." },
+  attaque_sournoise: { nom: "Attaque sournoise", icone: "🗡️", type: "attaque", cible: "ennemi", cout: 2, des_bonus: "1d6", avantage: true,
+    desc: "Attaque avec avantage (deux d20, on garde le meilleur) et +1d6 dégâts." },
   lame_empoisonnee: { nom: "Lame empoisonnée", icone: "🧪", type: "attaque", cible: "ennemi", cout: 1,
     statut: { id: "poison", duree: 3, valeur: "1d4+1" }, desc: "Attaque qui empoisonne la cible : 1d4+1 dégâts par tour pendant 3 tours." },
   coup_bas: { nom: "Coup bas", icone: "👊", type: "attaque", cible: "ennemi", cout: 3, statut: { id: "etourdi", duree: 1 },
@@ -60,8 +60,8 @@ export const COMPETENCES = {
   // Clerc
   soins: { nom: "Soins", icone: "💖", type: "soin", cible: "soi", cout: 2, des: "2d8", carac: "SAG",
     desc: "Soigne 2d8 + SAG PV." },
-  flamme_sacree: { nom: "Flamme sacrée", icone: "☀️", type: "sort_attaque", cible: "ennemi", cout: 1, des: "2d8", carac: "SAG",
-    desc: "Une flamme divine : 2d8 + SAG de dégâts radiants." },
+  flamme_sacree: { nom: "Flamme sacrée", icone: "☀️", type: "sort_attaque", cible: "ennemi", cout: 1, des: "1d8", carac: "SAG",
+    desc: "Une flamme divine : 1d8 + SAG de dégâts radiants." },
   benediction: { nom: "Bénédiction", icone: "🙏", type: "buff", cible: "soi", cout: 2, duree: 4, effet: { att: 2, ca: 1 },
     desc: "+2 à l'attaque et +1 CA pendant 4 tours." },
   esprits_gardiens: { nom: "Esprits gardiens", icone: "👼", type: "buff", cible: "soi", cout: 3, duree: 3, effet: { aura: "2d6" },
@@ -105,7 +105,7 @@ export const HEROS = {
     id: "mage", nom: "Ilsa", titre: "Mage", couleur: "#8a5cc4",
     desc: "Fragile mais redoutable : sorts puissants, gestion des PM.",
     caracs: { FOR: 8, DEX: 14, CON: 12, INT: 16, SAG: 12 }, principale: "INT",
-    pv: 26, pv_niveau: 5, pm: 7, ca: 13,
+    pv: 28, pv_niveau: 5, pm: 7, ca: 13,
     arme: { nom: "Bâton", des: "1d6", carac: "DEX" },
     competences: ["projectile_magique", "rayon_de_givre", "armure_de_mage"],
     branches: [
@@ -198,12 +198,12 @@ export const FORGE = {
 // ia : comportement particulier (voir moteur.js). taille : échelle du dessin.
 
 export const ENNEMIS = {
-  gobelin: { nom: "Gobelin", sprite: "gobelin", pv: 7, ca: 13, att: 4, degats: "1d6+1", dex: 2, xp: 12, or: [2, 6], cout: 1 },
-  archer: { nom: "Archer gobelin", sprite: "archer", pv: 6, ca: 12, att: 4, degats: "1d6+1", dex: 2, xp: 12, or: [2, 6], cout: 1 },
-  chaman: { nom: "Chaman gobelin", sprite: "chaman", pv: 9, ca: 11, att: 4, degats: "2d4", dex: 1, xp: 18, or: [4, 9], cout: 1.5, ia: "chaman" },
-  loup: { nom: "Loup des cavernes", sprite: "loup", pv: 11, ca: 13, att: 4, degats: "2d4", dex: 2, xp: 16, or: [0, 2], cout: 1.5, ia: "loup" },
-  gobelours: { nom: "Gobelours", sprite: "gobelours", pv: 22, ca: 14, att: 5, degats: "2d6+2", dex: 1, xp: 45, or: [10, 20], ia: "brute", taille: 1.25, elite: true },
-  capitaine: { nom: "Capitaine hobgobelin", sprite: "capitaine", pv: 20, ca: 15, att: 5, degats: "1d8+2", dex: 1, xp: 45, or: [12, 22], ia: "capitaine", taille: 1.15, elite: true },
+  gobelin: { nom: "Gobelin", sprite: "gobelin", pv: 7, ca: 12, att: 3, degats: "1d6+1", dex: 2, xp: 12, or: [2, 6], cout: 1 },
+  archer: { nom: "Archer gobelin", sprite: "archer", pv: 6, ca: 11, att: 3, degats: "1d6+1", dex: 2, xp: 12, or: [2, 6], cout: 1 },
+  chaman: { nom: "Chaman gobelin", sprite: "chaman", pv: 9, ca: 11, att: 3, degats: "2d4", dex: 1, xp: 18, or: [4, 9], cout: 1.5, ia: "chaman" },
+  loup: { nom: "Loup des cavernes", sprite: "loup", pv: 11, ca: 12, att: 3, degats: "2d4", dex: 2, xp: 16, or: [0, 2], cout: 1.5, ia: "loup" },
+  gobelours: { nom: "Gobelours", sprite: "gobelours", pv: 22, ca: 13, att: 4, degats: "2d6+2", dex: 1, xp: 45, or: [10, 20], ia: "brute", taille: 1.25, elite: true },
+  capitaine: { nom: "Capitaine hobgobelin", sprite: "capitaine", pv: 20, ca: 14, att: 4, degats: "1d8+2", dex: 1, xp: 45, or: [12, 22], ia: "capitaine", taille: 1.15, elite: true },
   roi: { nom: "Grokk, Roi gobelin", sprite: "roi", pv: 40, ca: 14, att: 5, degats: "1d10+2", dex: 1, xp: 120, or: [40, 60], ia: "roi", taille: 1.5, boss: true },
 };
 

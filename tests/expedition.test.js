@@ -378,3 +378,69 @@ test("chaque héros a des données complètes", () => {
     assert.ok(st.pvMax > 15 && st.ca >= 12 && st.competences.length >= 2);
   }
 });
+
+test("jetDegats : détail lisible, et un critique relance les dés sans doubler le bonus", () => {
+  const j = M.jetDegats(["1d6+1"], 2);
+  assert.match(j.detail, /^1d6 \[\d\] \+ 1 \+ 2$/);
+  for (let i = 0; i < 300; i++) {
+    const c = M.jetDegats(["1d6+1"], 0, true).total;
+    assert.ok(c >= 3 && c <= 13, `critique hors limites : ${c}`);
+    const a = M.jetDegats(["3d4"]).total;
+    assert.ok(a >= 3 && a <= 12);
+  }
+  assert.match(M.jetDegats(["1d6"], -1).detail, /− 1$/);
+});
+
+test("équilibrage : projectile magique coûte 2 PM et ne peut plus être enchaîné sans fin", () => {
+  const p = M.creerProfil();
+  const c = M.nouvelleCourse(p, "mage", "normal");
+  M.entrerSalle(p, c, "0-0");
+  c.pm = 1;
+  assert.throws(() => M.jouerAction(p, c, { type: "competence", id: "projectile_magique" }), /PM/);
+});
+
+test("chances de réussite : 1 rate et 20 réussit toujours, avantage et désavantage", () => {
+  assert.equal(M.chanceReussite(5, 12), 0.7);
+  assert.equal(M.chanceReussite(20, 5), 0.95); // un 1 rate toujours
+  assert.equal(M.chanceReussite(0, 40), 0.05); // un 20 réussit toujours
+  assert.equal(M.chanceReussite(0, 11, { avantage: true }), 0.75);
+  assert.equal(M.chanceReussite(0, 11, { desavantage: true }), 0.25);
+  assert.equal(M.chanceReussite(0, 40, { critique: 19 }), 0.1);
+});
+
+test("dé karmique : avantage après 2 échecs d'affilée, jusqu'à la prochaine réussite", () => {
+  const p = M.creerProfil();
+  const c = M.nouvelleCourse(p, "guerrier", "normal");
+  M.entrerSalle(p, c, "0-0");
+  for (const e of c.salle.ennemis) { e.ca = 40; e.pv = 999; e.att = -99; }
+  c.salle.premiere = false;
+  const jets = [];
+  for (let i = 0; i < 4; i++) jets.push(M.jouerAction(p, c, { type: "attaque" }).find((e) => e.type === "jet" && e.qui === "heros"));
+  assert.equal(jets[0].karma, false);
+  assert.equal(jets[1].karma, false);
+  assert.equal(jets[2].karma, true);
+  assert.equal(jets[2].des.length, 2);
+  // Après une réussite, le compteur repart de zéro.
+  for (const e of c.salle.ennemis) e.ca = 1;
+  const touche = M.jouerAction(p, c, { type: "attaque" }).find((e) => e.type === "jet" && e.qui === "heros");
+  if (touche.touche) assert.equal(c.malchance, 0);
+  // Désactivé dans les réglages : jamais d'avantage karmique.
+  const c2 = M.nouvelleCourse(p, "guerrier", "normal", { karma: false });
+  M.entrerSalle(p, c2, "0-0");
+  for (const e of c2.salle.ennemis) { e.ca = 40; e.pv = 999; e.att = -99; }
+  c2.salle.premiere = false;
+  for (let i = 0; i < 4; i++) {
+    const j = M.jouerAction(p, c2, { type: "attaque" }).find((e) => e.type === "jet" && e.qui === "heros");
+    assert.equal(j.karma, false);
+  }
+});
+
+test("chanceToucher tient compte de la CA de la cible visée", () => {
+  const p = M.creerProfil();
+  const c = M.nouvelleCourse(p, "guerrier", "normal");
+  M.entrerSalle(p, c, "0-0");
+  c.salle.premiere = false;
+  const cible = c.salle.ennemis[0];
+  cible.ca = 12;
+  assert.equal(M.chanceToucher(p, c, cible.id), M.chanceReussite(M.statsCourse(p, c).att, 12));
+});

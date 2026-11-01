@@ -36,6 +36,30 @@ Chaque mise à jour du jeu sur GitHub est mise en ligne automatiquement sur Verc
 Dans Vercel : ton projet → **Settings → Environment Variables** (voir « Réglages facultatifs »
 ci-dessous), puis **Deployments → ⋯ → Redeploy** pour appliquer.
 
+## 👤 Activer les comptes joueurs (Le Repaire de Grokk, ~5 minutes, gratuit)
+
+Les comptes permettent de **retrouver sa progression sur tous ses appareils** (Tesla, téléphone,
+ordinateur) avec un nom et un mot de passe. Ils ont besoin d'une petite base de données gratuite,
+**Upstash Redis**, qui s'ajoute depuis Vercel :
+
+1. Sur **https://vercel.com**, ouvre ton projet **dndstories**, puis l'onglet **Storage**.
+2. Clique sur **Create Database** (ou *Browse Marketplace*), choisis **Upstash** → **Upstash for Redis**,
+   puis **Continue**.
+3. Choisis la région la plus proche (par exemple *Frankfurt*), le plan **Free**, et valide
+   (**Create**). Accepte les conditions d'Upstash si on te le demande.
+4. À l'étape **Connect Project**, choisis **dndstories**, coche tous les environnements et clique sur **Connect**.
+   Vercel ajoute tout seul les variables `KV_REST_API_URL` et `KV_REST_API_TOKEN`.
+5. Va dans **Deployments → ⋯ (sur le plus récent) → Redeploy** pour que le serveur les prenne en compte.
+
+C'est tout : dans le jeu, le bouton **👤 Connexion** (en haut à droite) permet de créer un compte puis de
+se connecter sur chaque appareil. **Ouvre le jeu depuis ton adresse Vercel** (pas l'adresse GitHub Pages),
+car c'est elle qui parle au serveur.
+
+🔒 Les mots de passe sont hachés (PBKDF2, 100 000 tours, un sel par compte) et ne sont jamais stockés en
+clair ; les jetons de connexion durent 180 jours et seule leur empreinte est enregistrée. Après 10
+mots de passe faux, un compte est bloqué 15 minutes. Si tu as réglé des `CODES_ACCES`, il faut un code
+pour créer un compte. L'offre gratuite d'Upstash suffit largement pour un usage entre amis.
+
 ## Protéger ton porte-monnaie 💸
 
 Le serveur se protège déjà tout seul :

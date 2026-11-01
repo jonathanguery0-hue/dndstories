@@ -57,10 +57,14 @@ Roi Grokk, et une **IA maître du jeu** raconte chaque salle.
   l'accueil). Elle ne fait que **raconter** (1 à 3 phrases par salle) : les règles et les dés restent dans le jeu.
   Sans IA, des textes écrits à l'avance prennent le relais. Maître Orin, au camp, te donne des conseils.
 - 💾 **Sauvegarde automatique** (on peut reprendre une expédition en cours), export/import dans ⚙️.
+- 👤 **Comptes joueurs** : bouton **Connexion** en haut à droite. Avec un nom et un mot de passe, tu retrouves
+  tes héros, ton or et ton expédition en cours sur la Tesla, ton téléphone ou ton ordinateur (synchronisation
+  automatique, la partie la plus récente gagne). À activer une fois sur le serveur Vercel : voir
+  [`serveur/README.md`](serveur/README.md#-activer-les-comptes-joueurs-le-repaire-de-grokk-5-minutes-gratuit).
 
 Code : `expedition.html`, `css/expedition.css` et `js/expedition/` (`donnees.js` héros, ennemis, talents et
 événements ; `moteur.js` règles et combats ; `sprites.js` pixel art dessiné en code ; `narrateur.js` IA maître du
-jeu ; `sauvegarde.js` ; `app.js` interface). Tests : `tests/expedition.test.js`.
+jeu ; `sauvegarde.js` ; `compte.js` comptes joueurs ; `app.js` interface). Tests : `tests/expedition.test.js` et `tests/compte.test.js`.
 
 ---
 
