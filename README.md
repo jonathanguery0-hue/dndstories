@@ -31,6 +31,37 @@ Rien à installer : ça marche sur ordinateur, tablette et téléphone.
   fichier pour écrire à plusieurs. **Import d'un PDF** déjà mis en page : le texte et les images sont lus dans le
   navigateur, puis l'IA range chaque page (couverture, parties, encadrés, fiches PNJ, aides de jeu) sans réécrire le texte.
 
+## 🗡️ Nouveau : Le Repaire de Grokk (RPG pixel au tour par tour)
+
+### 👉 Jouer : **https://jonathanguery0-hue.github.io/dndstories/expedition.html**
+
+Un petit jeu de rôle **en pixel art**, pensé pour des parties **courtes (10 à 15 minutes)** et de **gros boutons
+tactiles** (téléphone, tablette, écran de voiture). Tu explores le repaire des gobelins salle par salle jusqu'au
+Roi Grokk, et une **IA maître du jeu** raconte chaque salle.
+
+- ⚔️ **Combats au tour par tour** façon D&D simplifié : d20 + bonus contre la CA, critiques sur 20, jets de
+  sauvegarde. Actions : **Attaquer**, **Compétences** (sorts et techniques avec des PM), **Objets**, **Défendre**.
+  Touche un ennemi pour le viser.
+- 🧙 **4 héros** : Brann le Guerrier, Ilsa la Mage, Vex le Roublard, et Sœur Aube la Clerc (à débloquer en battant Grokk).
+- 🗺️ **Carte à embranchements** : 7 salles puis le boss. Combats, élites, événements à choix (tests de caractéristique),
+  trésors, marchand Zibb et feux de camp.
+- 👹 **Gobelins** : gobelins, archers, chamans soigneurs, loups, gobelours, capitaines hobgobelins… et **Grokk**, qui
+  prévient avant son coup de massue (mets-toi en garde !) et appelle ses gardes à mi-vie.
+- 📈 **Progression permanente** : l'XP fait monter chaque héros de niveau (jusqu'au niveau 10), chaque niveau donne un
+  **point de talent** (arbre de 3 branches par héros, réinitialisable gratuitement). L'or rapporté paie la
+  **forge** (arme, armure, talisman) et les **provisions** de l'apothicaire.
+- 💎 **Reliques** : des bonus valables pour une expédition (trésors, élites, marchand, autel…).
+- 🎚️ **4 difficultés** : Facile, Normal, Difficile, puis Cauchemar une fois Difficile vaincu.
+- ☠️ **La mort n'est pas définitive** : tu gardes l'XP gagnée et la moitié de l'or trouvé.
+- 🤖 **IA maître du jeu** : elle utilise la même connexion que Contes & Dragons (serveur du jeu ou ta clé, dans ⚙️ sur
+  l'accueil). Elle ne fait que **raconter** (1 à 3 phrases par salle) : les règles et les dés restent dans le jeu.
+  Sans IA, des textes écrits à l'avance prennent le relais. Maître Orin, au camp, te donne des conseils.
+- 💾 **Sauvegarde automatique** (on peut reprendre une expédition en cours), export/import dans ⚙️.
+
+Code : `expedition.html`, `css/expedition.css` et `js/expedition/` (`donnees.js` héros, ennemis, talents et
+événements ; `moteur.js` règles et combats ; `sprites.js` pixel art dessiné en code ; `narrateur.js` IA maître du
+jeu ; `sauvegarde.js` ; `app.js` interface). Tests : `tests/expedition.test.js`.
+
 ---
 
 ## 🎮 Jouer sans rien configurer
